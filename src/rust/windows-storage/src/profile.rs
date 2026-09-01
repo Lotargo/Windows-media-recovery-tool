@@ -14,6 +14,7 @@ const STORAGE_ACCESS_ALIGNMENT_PROPERTY: i32 = 6;
 const STORAGE_DEVICE_SEEK_PENALTY_PROPERTY: i32 = 7;
 const STORAGE_DEVICE_TRIM_PROPERTY: i32 = 8;
 const PROPERTY_STANDARD_QUERY: i32 = 0;
+const MAX_STORAGE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
@@ -40,6 +41,13 @@ struct StoragePropertyQuery {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
+struct StorageDescriptorHeader {
+    _version: u32,
+    size: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 struct GetLengthInformation {
     length: i64,
 }
@@ -59,11 +67,11 @@ struct DiskGeometry {
 struct StorageAccessAlignmentDescriptor {
     _version: u32,
     _size: u32,
-    _bytes_per_cache_line: u32,
-    _bytes_offset_for_cache_alignment: u32,
+    bytes_per_cache_line: u32,
+    bytes_offset_for_cache_alignment: u32,
     bytes_per_logical_sector: u32,
     bytes_per_physical_sector: u32,
-    _bytes_offset_for_sector_alignment: u32,
+    bytes_offset_for_sector_alignment: u32,
 }
 
 #[repr(C)]
@@ -83,18 +91,18 @@ struct DeviceTrimDescriptor {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct StorageDeviceDescriptorHeader {
     _version: u32,
     _size: u32,
     _device_type: u8,
     _device_type_modifier: u8,
     removable_media: u8,
-    _command_queueing: u8,
-    _vendor_id_offset: u32,
-    _product_id_offset: u32,
-    _product_revision_offset: u32,
-    _serial_number_offset: u32,
+    command_queueing: u8,
+    vendor_id_offset: u32,
+    product_id_offset: u32,
+    product_revision_offset: u32,
+    serial_number_offset: u32,
     bus_type: i32,
     _raw_properties_length: u32,
 }
@@ -164,6 +172,46 @@ impl StorageBusType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageKind {
+    Hdd,
+    Ssd,
+    Nvme,
+    Removable,
+    SdMmc,
+    Virtual,
+    Unknown,
+}
+
+impl StorageKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hdd => "hdd",
+            Self::Ssd => "ssd",
+            Self::Nvme => "nvme",
+            Self::Removable => "removable",
+            Self::SdMmc => "sd-mmc",
+            Self::Virtual => "virtual",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct StorageIdentity {
+    pub vendor: Option<String>,
+    pub model: Option<String>,
+    pub revision: Option<String>,
+    pub serial_number: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StorageAlignment {
+    pub bytes_per_cache_line: Option<u32>,
+    pub bytes_offset_for_cache_alignment: Option<u32>,
+    pub bytes_offset_for_sector_alignment: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageProfile {
     pub length_bytes: u64,
     pub logical_sector_size: u32,
@@ -172,6 +220,18 @@ pub struct StorageProfile {
     pub trim_enabled: Option<bool>,
     pub bus_type: Option<StorageBusType>,
     pub removable: Option<bool>,
+    pub command_queueing: Option<bool>,
+    pub kind: StorageKind,
+    pub identity: StorageIdentity,
+    pub alignment: StorageAlignment,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeviceDescriptorInfo {
+    bus_type: StorageBusType,
+    removable: bool,
+    command_queueing: bool,
+    identity: StorageIdentity,
 }
 
 pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
@@ -204,8 +264,11 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
         .ok()
         .map(|value| value.trim_enabled != 0);
 
-    let device =
-        query_property::<StorageDeviceDescriptorHeader>(file, STORAGE_DEVICE_PROPERTY).ok();
+    let device = query_device_descriptor(file).ok();
+    let bus_type = device.as_ref().map(|value| value.bus_type);
+    let removable = device.as_ref().map(|value| value.removable);
+    let command_queueing = device.as_ref().map(|value| value.command_queueing);
+    let kind = classify_storage(bus_type, incurs_seek_penalty, removable);
 
     Ok(StorageProfile {
         length_bytes,
@@ -213,15 +276,143 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
         physical_sector_size,
         incurs_seek_penalty,
         trim_enabled,
-        bus_type: device.map(|value| StorageBusType::from_raw(value.bus_type)),
-        removable: device.map(|value| value.removable_media != 0),
+        bus_type,
+        removable,
+        command_queueing,
+        kind,
+        identity: device
+            .as_ref()
+            .map(|value| value.identity.clone())
+            .unwrap_or_default(),
+        alignment: StorageAlignment {
+            bytes_per_cache_line: alignment
+                .map(|value| value.bytes_per_cache_line)
+                .filter(|value| *value != 0),
+            bytes_offset_for_cache_alignment: alignment
+                .map(|value| value.bytes_offset_for_cache_alignment),
+            bytes_offset_for_sector_alignment: alignment
+                .map(|value| value.bytes_offset_for_sector_alignment),
+        },
     })
+}
+
+pub const fn classify_storage(
+    bus_type: Option<StorageBusType>,
+    incurs_seek_penalty: Option<bool>,
+    removable: Option<bool>,
+) -> StorageKind {
+    match bus_type {
+        Some(StorageBusType::Nvme) => return StorageKind::Nvme,
+        Some(StorageBusType::Sd | StorageBusType::Mmc) => return StorageKind::SdMmc,
+        Some(StorageBusType::Virtual | StorageBusType::FileBackedVirtual) => {
+            return StorageKind::Virtual;
+        }
+        _ => {}
+    }
+
+    match incurs_seek_penalty {
+        Some(true) => StorageKind::Hdd,
+        Some(false) if removable == Some(true) => StorageKind::Removable,
+        Some(false) => StorageKind::Ssd,
+        None if removable == Some(true) => StorageKind::Removable,
+        None => StorageKind::Unknown,
+    }
 }
 
 fn query_length(file: &File) -> io::Result<u64> {
     let value = query_without_input::<GetLengthInformation>(file, IOCTL_DISK_GET_LENGTH_INFO)?;
     u64::try_from(value.length)
         .map_err(|_| io::Error::other("Windows reported a negative disk length"))
+}
+
+fn query_device_descriptor(file: &File) -> io::Result<DeviceDescriptorInfo> {
+    let query = StoragePropertyQuery {
+        property_id: STORAGE_DEVICE_PROPERTY,
+        query_type: PROPERTY_STANDARD_QUERY,
+        _additional_parameters: [0],
+    };
+    let header: StorageDescriptorHeader =
+        query_with_input(file, IOCTL_STORAGE_QUERY_PROPERTY, &query)?;
+    let descriptor_size = header.size as usize;
+
+    if descriptor_size < size_of::<StorageDeviceDescriptorHeader>()
+        || descriptor_size > MAX_STORAGE_DESCRIPTOR_BYTES
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Windows reported an invalid storage descriptor size",
+        ));
+    }
+
+    let mut buffer = vec![0_u8; descriptor_size];
+    let mut bytes_returned = 0_u32;
+    let result = unsafe {
+        device_io_control(
+            file.as_raw_handle(),
+            IOCTL_STORAGE_QUERY_PROPERTY,
+            (&query as *const StoragePropertyQuery).cast(),
+            size_of::<StoragePropertyQuery>() as u32,
+            buffer.as_mut_ptr().cast(),
+            buffer.len() as u32,
+            &mut bytes_returned,
+            null_mut(),
+        )
+    };
+
+    if result == 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    let bytes_returned = bytes_returned as usize;
+    if bytes_returned < size_of::<StorageDeviceDescriptorHeader>()
+        || bytes_returned > buffer.len()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "Windows returned a truncated storage descriptor",
+        ));
+    }
+
+    buffer.truncate(bytes_returned);
+    parse_device_descriptor(&buffer)
+}
+
+fn parse_device_descriptor(buffer: &[u8]) -> io::Result<DeviceDescriptorInfo> {
+    if buffer.len() < size_of::<StorageDeviceDescriptorHeader>() {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "storage device descriptor header is truncated",
+        ));
+    }
+
+    let descriptor = unsafe {
+        (buffer.as_ptr().cast::<StorageDeviceDescriptorHeader>()).read_unaligned()
+    };
+
+    Ok(DeviceDescriptorInfo {
+        bus_type: StorageBusType::from_raw(descriptor.bus_type),
+        removable: descriptor.removable_media != 0,
+        command_queueing: descriptor.command_queueing != 0,
+        identity: StorageIdentity {
+            vendor: descriptor_string(buffer, descriptor.vendor_id_offset),
+            model: descriptor_string(buffer, descriptor.product_id_offset),
+            revision: descriptor_string(buffer, descriptor.product_revision_offset),
+            serial_number: descriptor_string(buffer, descriptor.serial_number_offset),
+        },
+    })
+}
+
+fn descriptor_string(buffer: &[u8], offset: u32) -> Option<String> {
+    if offset == 0 {
+        return None;
+    }
+
+    let start = offset as usize;
+    let tail = buffer.get(start..)?;
+    let end = tail.iter().position(|value| *value == 0).unwrap_or(tail.len());
+    let value = String::from_utf8_lossy(&tail[..end]).trim().to_owned();
+
+    (!value.is_empty()).then_some(value)
 }
 
 fn query_property<T: Copy + Default>(file: &File, property_id: i32) -> io::Result<T> {
@@ -314,5 +505,39 @@ mod tests {
     #[test]
     fn unknown_bus_values_are_preserved() {
         assert_eq!(StorageBusType::from_raw(1234), StorageBusType::Other(1234));
+    }
+
+    #[test]
+    fn storage_classification_prefers_strong_device_signals() {
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Nvme), Some(false), Some(false)),
+            StorageKind::Nvme
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Sata), Some(true), Some(false)),
+            StorageKind::Hdd
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Sata), Some(false), Some(false)),
+            StorageKind::Ssd
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Usb), Some(false), Some(true)),
+            StorageKind::Removable
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Sd), None, Some(true)),
+            StorageKind::SdMmc
+        );
+    }
+
+    #[test]
+    fn descriptor_strings_are_read_from_offsets() {
+        let mut buffer = vec![0_u8; 32];
+        buffer.extend_from_slice(b"  Example Device  \0");
+
+        assert_eq!(descriptor_string(&buffer, 32), Some("Example Device".to_owned()));
+        assert_eq!(descriptor_string(&buffer, 0), None);
+        assert_eq!(descriptor_string(&buffer, 4096), None);
     }
 }
