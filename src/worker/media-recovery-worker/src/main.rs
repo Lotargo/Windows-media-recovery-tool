@@ -79,12 +79,26 @@ fn print_capabilities() {
 
 fn print_hardware_profile() {
     let profile = CpuProfile::detect();
+    let memory = profile
+        .memory
+        .map(|memory| {
+            format!(
+                "{{\"total_physical_bytes\":{},\"available_physical_bytes\":{},\"memory_load_percent\":{}}}",
+                memory.total_physical_bytes,
+                memory.available_physical_bytes,
+                memory.memory_load_percent,
+            )
+        })
+        .unwrap_or_else(|| "null".to_owned());
 
     println!(
-        "{{\"architecture\":\"{}\",\"pointer_width_bits\":{},\"logical_processors\":{},\"simd\":{{\"sse2\":{},\"sse4_2\":{},\"avx2\":{},\"avx512f\":{},\"neon\":{}}}}}",
+        "{{\"architecture\":\"{}\",\"pointer_width_bits\":{},\"logical_processors\":{},\"physical_cores\":{},\"processor_groups\":{},\"memory\":{},\"simd\":{{\"sse2\":{},\"sse4_2\":{},\"avx2\":{},\"avx512f\":{},\"neon\":{}}}}}",
         profile.architecture.as_str(),
         profile.pointer_width_bits,
         profile.logical_processors,
+        optional_usize(profile.physical_cores),
+        optional_u16(profile.processor_groups),
+        memory,
         profile.simd.sse2,
         profile.simd.sse4_2,
         profile.simd.avx2,
@@ -162,26 +176,31 @@ fn print_raw_image_info(path: &str) -> std::io::Result<()> {
 fn print_physical_drive_info(index: u32) -> std::io::Result<()> {
     let drive = WindowsPhysicalDrive::open_read_only(index)?;
     let profile = drive.profile();
-    let physical_sector_size = optional_number(profile.physical_sector_size);
-    let seek_penalty = optional_bool(profile.incurs_seek_penalty);
-    let trim_enabled = optional_bool(profile.trim_enabled);
     let bus_type = profile
         .bus_type
-        .map(|value| format!("\"{}\"", value.as_str()))
+        .map(|value| json_string(value.as_str()))
         .unwrap_or_else(|| "null".to_owned());
-    let removable = optional_bool(profile.removable);
 
     println!(
-        "{{\"index\":{},\"path\":\"{}\",\"length_bytes\":{},\"logical_sector_size\":{},\"physical_sector_size\":{},\"incurs_seek_penalty\":{},\"trim_enabled\":{},\"bus_type\":{},\"removable\":{}}}",
+        "{{\"index\":{},\"path\":{},\"length_bytes\":{},\"logical_sector_size\":{},\"physical_sector_size\":{},\"kind\":\"{}\",\"incurs_seek_penalty\":{},\"trim_enabled\":{},\"bus_type\":{},\"removable\":{},\"command_queueing\":{},\"identity\":{{\"vendor\":{},\"model\":{},\"revision\":{},\"serial_number\":{}}},\"alignment\":{{\"bytes_per_cache_line\":{},\"bytes_offset_for_cache_alignment\":{},\"bytes_offset_for_sector_alignment\":{}}}}}",
         drive.index(),
-        drive.path().replace('\\', "\\\\"),
+        json_string(drive.path()),
         drive.len(),
         drive.logical_sector_size(),
-        physical_sector_size,
-        seek_penalty,
-        trim_enabled,
+        optional_number(profile.physical_sector_size),
+        profile.kind.as_str(),
+        optional_bool(profile.incurs_seek_penalty),
+        optional_bool(profile.trim_enabled),
         bus_type,
-        removable,
+        optional_bool(profile.removable),
+        optional_bool(profile.command_queueing),
+        optional_json_string(profile.identity.vendor.as_deref()),
+        optional_json_string(profile.identity.model.as_deref()),
+        optional_json_string(profile.identity.revision.as_deref()),
+        optional_json_string(profile.identity.serial_number.as_deref()),
+        optional_number(profile.alignment.bytes_per_cache_line),
+        optional_number(profile.alignment.bytes_offset_for_cache_alignment),
+        optional_number(profile.alignment.bytes_offset_for_sector_alignment),
     );
 
     Ok(())
@@ -191,7 +210,19 @@ fn json_string(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+fn optional_json_string(value: Option<&str>) -> String {
+    value.map_or_else(|| "null".to_owned(), json_string)
+}
+
 fn optional_number(value: Option<u32>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn optional_usize(value: Option<usize>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn optional_u16(value: Option<u16>) -> String {
     value.map_or_else(|| "null".to_owned(), |value| value.to_string())
 }
 
