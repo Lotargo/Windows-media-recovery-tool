@@ -29,11 +29,15 @@ The project follows the spirit of [Keep a Changelog](https://keepachangelog.com/
 - Stage 1 `windows-storage` crate with read-only RAW disk image support and Windows physical-drive read-only handle primitives.
 - Worker `--hardware-profile` and `--raw-image-info` diagnostics.
 - CI runtime checks for CPU architecture/pointer width and RAW disk image access on x86, x64, and ARM64.
+- Windows physical-drive profiling for disk length, logical/physical sector sizes, seek penalty, TRIM, bus type, and removable-media hints.
+- `WindowsPhysicalDrive` implementation of the shared read-only `BlockSource` contract.
+- Worker `--physical-drive-info <index>` diagnostic for controlled Windows hardware testing.
 
 ### Changed
 
 - CI now builds real Rust and WinUI targets instead of using implementation placeholders.
 - Rust CI now uses `--locked` for test, clippy, and release build steps.
+- Stage 1 capability reporting now advertises implemented read-only physical-drive access.
 - Development worker binary uses the Cargo-friendly name `media-recovery-worker.exe`; final public naming is owned by the Windows packaging layer.
 
 ### Fixed
