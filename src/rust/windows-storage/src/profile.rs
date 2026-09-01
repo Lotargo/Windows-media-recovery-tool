@@ -360,8 +360,7 @@ fn query_device_descriptor(file: &File) -> io::Result<DeviceDescriptorInfo> {
     }
 
     let bytes_returned = bytes_returned as usize;
-    if bytes_returned < size_of::<StorageDeviceDescriptorHeader>()
-        || bytes_returned > buffer.len()
+    if bytes_returned < size_of::<StorageDeviceDescriptorHeader>() || bytes_returned > buffer.len()
     {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
@@ -381,9 +380,8 @@ fn parse_device_descriptor(buffer: &[u8]) -> io::Result<DeviceDescriptorInfo> {
         ));
     }
 
-    let descriptor = unsafe {
-        (buffer.as_ptr().cast::<StorageDeviceDescriptorHeader>()).read_unaligned()
-    };
+    let descriptor =
+        unsafe { (buffer.as_ptr().cast::<StorageDeviceDescriptorHeader>()).read_unaligned() };
 
     Ok(DeviceDescriptorInfo {
         bus_type: StorageBusType::from_raw(descriptor.bus_type),
