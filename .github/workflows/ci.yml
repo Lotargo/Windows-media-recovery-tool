@@ -34,8 +34,8 @@ jobs:
             'WindowsMediaRecovery.sln',
             'src/desktop/MediaRecovery.Desktop/MediaRecovery.Desktop.csproj',
             'src/worker/media-recovery-worker/Cargo.toml',
-            'src/rust/hardware-profile/Cargo.toml',
             'src/rust/recovery-core/Cargo.toml',
+            'src/rust/hardware-profile/Cargo.toml',
             'src/rust/windows-storage/Cargo.toml',
             'protocol/recovery-protocol/Cargo.toml',
             'plan/README.md',
@@ -165,8 +165,8 @@ jobs:
             throw 'Stage 1 worker must report RAW disk image support.'
           }
 
-          if ($capabilities.physical_drive_access) {
-            throw 'Physical drive capability must remain false until disk geometry/property queries are implemented.'
+          if (-not $capabilities.physical_drive_access) {
+            throw 'Stage 1 worker must report profiled read-only physical drive support.'
           }
 
       - name: Verify hardware profile
@@ -192,16 +192,18 @@ jobs:
         run: |
           $worker = '.\target\${{ matrix.rust_target }}\release\media-recovery-worker.exe'
           $fixture = Join-Path $env:RUNNER_TEMP 'stage1-raw-image.img'
-          [System.IO.File]::WriteAllBytes($fixture, (New-Object byte[] 8192))
-          $image = (& $worker --raw-image-info $fixture) | ConvertFrom-Json
+          [System.IO.File]::WriteAllBytes($fixture, [byte[]](0..255))
+          $info = (& $worker --raw-image-info $fixture) | ConvertFrom-Json
 
-          if ($image.length_bytes -ne 8192) {
-            throw "Unexpected RAW image length: $($image.length_bytes)"
+          if ($info.length_bytes -ne 256) {
+            throw "Unexpected RAW image length: $($info.length_bytes)"
           }
 
-          if ($image.logical_sector_size -ne 512) {
-            throw "Unexpected default logical sector size: $($image.logical_sector_size)"
+          if ($info.logical_sector_size -ne 512) {
+            throw "Unexpected RAW image logical sector size: $($info.logical_sector_size)"
           }
+
+          Remove-Item -LiteralPath $fixture -Force
 
   desktop:
     name: WinUI ${{ matrix.arch }}
