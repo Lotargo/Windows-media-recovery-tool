@@ -34,7 +34,7 @@ unsafe extern "system" {
 struct StoragePropertyQuery {
     property_id: i32,
     query_type: i32,
-    additional_parameters: [u8; 1],
+    _additional_parameters: [u8; 1],
 }
 
 #[repr(C)]
@@ -46,56 +46,56 @@ struct GetLengthInformation {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct DiskGeometry {
-    cylinders: i64,
-    media_type: i32,
-    tracks_per_cylinder: u32,
-    sectors_per_track: u32,
+    _cylinders: i64,
+    _media_type: i32,
+    _tracks_per_cylinder: u32,
+    _sectors_per_track: u32,
     bytes_per_sector: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct StorageAccessAlignmentDescriptor {
-    version: u32,
-    size: u32,
-    bytes_per_cache_line: u32,
-    bytes_offset_for_cache_alignment: u32,
+    _version: u32,
+    _size: u32,
+    _bytes_per_cache_line: u32,
+    _bytes_offset_for_cache_alignment: u32,
     bytes_per_logical_sector: u32,
     bytes_per_physical_sector: u32,
-    bytes_offset_for_sector_alignment: u32,
+    _bytes_offset_for_sector_alignment: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct DeviceSeekPenaltyDescriptor {
-    version: u32,
-    size: u32,
+    _version: u32,
+    _size: u32,
     incurs_seek_penalty: u8,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct DeviceTrimDescriptor {
-    version: u32,
-    size: u32,
+    _version: u32,
+    _size: u32,
     trim_enabled: u8,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct StorageDeviceDescriptorHeader {
-    version: u32,
-    size: u32,
-    device_type: u8,
-    device_type_modifier: u8,
+    _version: u32,
+    _size: u32,
+    _device_type: u8,
+    _device_type_modifier: u8,
     removable_media: u8,
-    command_queueing: u8,
-    vendor_id_offset: u32,
-    product_id_offset: u32,
-    product_revision_offset: u32,
-    serial_number_offset: u32,
+    _command_queueing: u8,
+    _vendor_id_offset: u32,
+    _product_id_offset: u32,
+    _product_revision_offset: u32,
+    _serial_number_offset: u32,
     bus_type: i32,
-    raw_properties_length: u32,
+    _raw_properties_length: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -180,12 +180,17 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
         STORAGE_ACCESS_ALIGNMENT_PROPERTY,
     )
     .ok();
-    let geometry = query_without_input::<DiskGeometry>(file, IOCTL_DISK_GET_DRIVE_GEOMETRY).ok();
+    let geometry =
+        query_without_input::<DiskGeometry>(file, IOCTL_DISK_GET_DRIVE_GEOMETRY).ok();
 
     let logical_sector_size = alignment
         .map(|value| value.bytes_per_logical_sector)
         .filter(|value| *value != 0)
-        .or_else(|| geometry.map(|value| value.bytes_per_sector).filter(|value| *value != 0))
+        .or_else(|| {
+            geometry
+                .map(|value| value.bytes_per_sector)
+                .filter(|value| *value != 0)
+        })
         .ok_or_else(|| io::Error::other("Windows did not report a logical sector size"))?;
 
     let physical_sector_size = alignment
@@ -203,7 +208,8 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
         .ok()
         .map(|value| value.trim_enabled != 0);
 
-    let device = query_property::<StorageDeviceDescriptorHeader>(file, STORAGE_DEVICE_PROPERTY).ok();
+    let device =
+        query_property::<StorageDeviceDescriptorHeader>(file, STORAGE_DEVICE_PROPERTY).ok();
 
     Ok(StorageProfile {
         length_bytes,
@@ -218,14 +224,15 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
 
 fn query_length(file: &File) -> io::Result<u64> {
     let value = query_without_input::<GetLengthInformation>(file, IOCTL_DISK_GET_LENGTH_INFO)?;
-    u64::try_from(value.length).map_err(|_| io::Error::other("Windows reported a negative disk length"))
+    u64::try_from(value.length)
+        .map_err(|_| io::Error::other("Windows reported a negative disk length"))
 }
 
 fn query_property<T: Copy + Default>(file: &File, property_id: i32) -> io::Result<T> {
     let query = StoragePropertyQuery {
         property_id,
         query_type: PROPERTY_STANDARD_QUERY,
-        additional_parameters: [0],
+        _additional_parameters: [0],
     };
 
     query_with_input(file, IOCTL_STORAGE_QUERY_PROPERTY, &query)
@@ -310,6 +317,9 @@ mod tests {
 
     #[test]
     fn unknown_bus_values_are_preserved() {
-        assert_eq!(StorageBusType::from_raw(1234), StorageBusType::Other(1234));
+        assert_eq!(
+            StorageBusType::from_raw(1234),
+            StorageBusType::Other(1234)
+        );
     }
 }
