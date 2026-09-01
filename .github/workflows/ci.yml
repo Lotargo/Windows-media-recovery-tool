@@ -63,15 +63,23 @@ jobs:
             exit 1
           }
 
-      - name: Validate Release 1 scope markers
+      - name: Validate Release 1 scope invariants
         shell: pwsh
         run: |
           $scope = Get-Content -LiteralPath 'plan/01-product-scope.md' -Raw
-          $requiredMarkers = @('Windows only', 'x86', 'x64', 'ARM64', 'No AI')
 
-          foreach ($marker in $requiredMarkers) {
-            if ($scope -notmatch [regex]::Escape($marker)) {
-              Write-Error "Release 1 scope marker missing: $marker"
+          $invariants = @(
+            @{ Name = 'Windows-only target'; Pattern = '(?im)^\s*-\s*Windows only\.' },
+            @{ Name = 'native x86 target'; Pattern = '(?im)^\s*-\s*Native x86 build\.' },
+            @{ Name = 'native x64 target'; Pattern = '(?im)^\s*-\s*Native x64 build\.' },
+            @{ Name = 'native ARM64 target'; Pattern = '(?im)^\s*-\s*Native ARM64 build\.' },
+            @{ Name = 'AI excluded from Release 1'; Pattern = '(?im)^\s*-\s*AI restoration, AI reconstruction, or AI classification;' },
+            @{ Name = 'generic document recovery excluded'; Pattern = '(?im)^\s*-\s*generic document recovery;' }
+          )
+
+          foreach ($invariant in $invariants) {
+            if ($scope -notmatch $invariant.Pattern) {
+              Write-Error "Release 1 scope invariant missing: $($invariant.Name)"
               exit 1
             }
           }
