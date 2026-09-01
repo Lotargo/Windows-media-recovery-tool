@@ -25,15 +25,21 @@ The project follows the spirit of [Keep a Changelog](https://keepachangelog.com/
 - Worker `--version` and `--capabilities` probes for CI and bootstrap diagnostics.
 - Initial versioned local IPC contract and Windows packaging workspace.
 - Synthetic recovery-fixture workspace for deterministic future recovery tests.
+- Stage 1 `hardware-profile` crate with native architecture, pointer-width, logical-processor, and baseline SIMD detection.
+- Stage 1 `windows-storage` crate with read-only RAW disk image support and Windows physical-drive read-only handle primitives.
+- Worker `--hardware-profile` and `--raw-image-info` diagnostics.
+- CI runtime checks for CPU architecture/pointer width and RAW disk image access on x86, x64, and ARM64.
 
 ### Changed
 
 - CI now builds real Rust and WinUI targets instead of using implementation placeholders.
+- Rust CI now uses `--locked` for test, clippy, and release build steps.
 - Development worker binary uses the Cargo-friendly name `media-recovery-worker.exe`; final public naming is owned by the Windows packaging layer.
 
 ### Fixed
 
 - Replaced a brittle CI check for the literal phrase `No AI` with checks for the actual Release 1 scope invariants.
+- Fixed initial Rust formatting and constant-assertion clippy failures reported by the first architecture-matrix run.
 
 ### Removed
 
