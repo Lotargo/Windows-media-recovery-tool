@@ -1,5 +1,5 @@
 use recovery_core::ENGINE_NAME;
-use recovery_protocol::{WorkerCapabilities, WORKER_NAME};
+use recovery_protocol::{WORKER_NAME, WorkerCapabilities};
 
 fn main() {
     let command = std::env::args().nth(1);
