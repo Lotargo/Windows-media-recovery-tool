@@ -1,3 +1,7 @@
+mod profile;
+
+pub use profile::{StorageBusType, StorageProfile};
+
 use recovery_core::BlockSource;
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -76,6 +80,7 @@ pub struct WindowsPhysicalDrive {
     file: File,
     index: u32,
     path: String,
+    profile: StorageProfile,
 }
 
 impl WindowsPhysicalDrive {
@@ -85,8 +90,14 @@ impl WindowsPhysicalDrive {
             .access_mode(GENERIC_READ)
             .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
             .open(&path)?;
+        let profile = profile::query_storage_profile(&file)?;
 
-        Ok(Self { file, index, path })
+        Ok(Self {
+            file,
+            index,
+            path,
+            profile,
+        })
     }
 
     pub const fn index(&self) -> u32 {
@@ -97,8 +108,28 @@ impl WindowsPhysicalDrive {
         &self.path
     }
 
-    pub fn read_at(&self, offset: u64, buffer: &mut [u8]) -> io::Result<usize> {
-        self.file.seek_read(buffer, offset)
+    pub const fn profile(&self) -> StorageProfile {
+        self.profile
+    }
+}
+
+impl BlockSource for WindowsPhysicalDrive {
+    fn len(&self) -> u64 {
+        self.profile.length_bytes
+    }
+
+    fn logical_sector_size(&self) -> u32 {
+        self.profile.logical_sector_size
+    }
+
+    fn read_at(&self, offset: u64, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() || offset >= self.profile.length_bytes {
+            return Ok(0);
+        }
+
+        let remaining = self.profile.length_bytes - offset;
+        let read_len = buffer.len().min(remaining.min(usize::MAX as u64) as usize);
+        self.file.seek_read(&mut buffer[..read_len], offset)
     }
 }
 
