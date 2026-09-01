@@ -1,4 +1,5 @@
 use hardware_profile::CpuProfile;
+use partition_table::{PartitionKind, PartitionScheme, discover_partition_table};
 use recovery_core::{BlockSource, ENGINE_NAME};
 use recovery_protocol::{WORKER_NAME, WorkerCapabilities};
 use windows_storage::enumerate_storage_sources;
@@ -27,6 +28,18 @@ fn main() {
             }
             None => {
                 eprintln!("--raw-image-info requires a path");
+                std::process::exit(2);
+            }
+        },
+        Some("--partition-info") => match args.next() {
+            Some(path) => {
+                if let Err(error) = print_partition_info(&path) {
+                    eprintln!("Failed to inspect partition table: {error}");
+                    std::process::exit(1);
+                }
+            }
+            None => {
+                eprintln!("--partition-info requires a RAW image path");
                 std::process::exit(2);
             }
         },
@@ -173,6 +186,59 @@ fn print_raw_image_info(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+fn print_partition_info(path: &str) -> std::io::Result<()> {
+    let image = RawDiskImage::open(path)?;
+    let Some(table) = discover_partition_table(&image)? else {
+        println!("{{\"scheme\":null,\"entries\":[]}}");
+        return Ok(());
+    };
+
+    let scheme = match table.scheme {
+        PartitionScheme::Mbr => "mbr",
+        PartitionScheme::Gpt => "gpt",
+    };
+    let entries = table
+        .entries
+        .iter()
+        .map(|entry| {
+            let kind = match &entry.kind {
+                PartitionKind::Mbr { type_code } => {
+                    format!("{{\"mbr_type\":{type_code}}}")
+                }
+                PartitionKind::Gpt { type_guid } => format!(
+                    "{{\"gpt_type_guid\":{}}}",
+                    json_string(&hex_bytes(type_guid))
+                ),
+            };
+            let unique_guid = entry
+                .unique_guid
+                .as_ref()
+                .map(|guid| json_string(&hex_bytes(guid)))
+                .unwrap_or_else(|| "null".to_owned());
+
+            format!(
+                "{{\"index\":{},\"start_lba\":{},\"sector_count\":{},\"byte_offset\":{},\"byte_length\":{},\"kind\":{},\"unique_guid\":{},\"attributes\":{},\"name\":{}}}",
+                entry.index,
+                entry.start_lba,
+                entry.sector_count,
+                entry.byte_offset,
+                entry.byte_length,
+                kind,
+                unique_guid,
+                optional_u64(entry.attributes),
+                optional_json_string(entry.name.as_deref()),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    println!(
+        "{{\"scheme\":\"{}\",\"entries\":[{}]}}",
+        scheme, entries,
+    );
+    Ok(())
+}
+
 fn print_physical_drive_info(index: u32) -> std::io::Result<()> {
     let drive = WindowsPhysicalDrive::open_read_only(index)?;
     let profile = drive.profile();
@@ -206,6 +272,16 @@ fn print_physical_drive_info(index: u32) -> std::io::Result<()> {
     Ok(())
 }
 
+fn hex_bytes(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
 fn json_string(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
@@ -215,6 +291,10 @@ fn optional_json_string(value: Option<&str>) -> String {
 }
 
 fn optional_number(value: Option<u32>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn optional_u64(value: Option<u64>) -> String {
     value.map_or_else(|| "null".to_owned(), |value| value.to_string())
 }
 
@@ -248,5 +328,6 @@ fn print_help() {
     println!("  MediaRecovery.Worker --hardware-profile");
     println!("  MediaRecovery.Worker --list-sources");
     println!("  MediaRecovery.Worker --raw-image-info <path>");
+    println!("  MediaRecovery.Worker --partition-info <raw-image-path>");
     println!("  MediaRecovery.Worker --physical-drive-info <index>");
 }
