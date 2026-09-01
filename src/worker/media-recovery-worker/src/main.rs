@@ -1,6 +1,7 @@
 use hardware_profile::CpuProfile;
 use recovery_core::{BlockSource, ENGINE_NAME};
 use recovery_protocol::{WORKER_NAME, WorkerCapabilities};
+use windows_storage::enumerate_storage_sources;
 use windows_storage::{RawDiskImage, WindowsPhysicalDrive};
 
 fn main() {
@@ -11,6 +12,12 @@ fn main() {
         Some("--version") => print_version(),
         Some("--capabilities") => print_capabilities(),
         Some("--hardware-profile") => print_hardware_profile(),
+        Some("--list-sources") => {
+            if let Err(error) = print_storage_sources() {
+                eprintln!("Failed to enumerate storage sources: {error}");
+                std::process::exit(1);
+            }
+        }
         Some("--raw-image-info") => match args.next() {
             Some(path) => {
                 if let Err(error) = print_raw_image_info(&path) {
@@ -86,6 +93,60 @@ fn print_hardware_profile() {
     );
 }
 
+fn print_storage_sources() -> std::io::Result<()> {
+    let discovery = enumerate_storage_sources()?;
+
+    let physical_drives = discovery
+        .physical_drives
+        .iter()
+        .map(|drive| {
+            let mount_points = drive
+                .mount_points
+                .iter()
+                .map(|mount| json_string(mount))
+                .collect::<Vec<_>>()
+                .join(",");
+
+            format!(
+                "{{\"index\":{},\"path\":{},\"mount_points\":[{}]}}",
+                drive.index,
+                json_string(&drive.path),
+                mount_points,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let mounted_volumes = discovery
+        .mounted_volumes
+        .iter()
+        .map(|volume| {
+            let disk_numbers = volume
+                .disk_numbers
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+
+            format!(
+                "{{\"root_path\":{},\"drive_type\":\"{}\",\"disk_numbers\":[{}],\"mapping_error\":{}}}",
+                json_string(&volume.root_path),
+                volume.drive_type.as_str(),
+                disk_numbers,
+                optional_i32(volume.mapping_error),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    println!(
+        "{{\"physical_drives\":[{}],\"mounted_volumes\":[{}]}}",
+        physical_drives, mounted_volumes,
+    );
+
+    Ok(())
+}
+
 fn print_raw_image_info(path: &str) -> std::io::Result<()> {
     let image = RawDiskImage::open(path)?;
 
@@ -126,7 +187,15 @@ fn print_physical_drive_info(index: u32) -> std::io::Result<()> {
     Ok(())
 }
 
+fn json_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
 fn optional_number(value: Option<u32>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn optional_i32(value: Option<i32>) -> String {
     value.map_or_else(|| "null".to_owned(), |value| value.to_string())
 }
 
@@ -146,6 +215,7 @@ fn print_help() {
     println!("  MediaRecovery.Worker --version");
     println!("  MediaRecovery.Worker --capabilities");
     println!("  MediaRecovery.Worker --hardware-profile");
+    println!("  MediaRecovery.Worker --list-sources");
     println!("  MediaRecovery.Worker --raw-image-info <path>");
     println!("  MediaRecovery.Worker --physical-drive-info <index>");
 }
