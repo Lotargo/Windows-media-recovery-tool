@@ -32,13 +32,19 @@ The project follows the spirit of [Keep a Changelog](https://keepachangelog.com/
 - Windows physical-drive profiling for disk length, logical/physical sector sizes, seek penalty, TRIM, bus type, and removable-media hints.
 - `WindowsPhysicalDrive` implementation of the shared read-only `BlockSource` contract.
 - Worker `--physical-drive-info <index>` diagnostic for controlled Windows hardware testing.
+- Physical-drive discovery through `QueryDosDeviceW` without probing arbitrary `PhysicalDriveN` indices.
+- Mounted drive discovery and disk-volume mapping through `IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS`.
+- Worker `--list-sources` diagnostic returning physical drives, mount points, mounted volume types, and mapping status.
+- CI runtime smoke checks for storage source discovery on x86, x64, and ARM64.
 
 ### Changed
 
 - CI now builds real Rust and WinUI targets instead of using implementation placeholders.
 - Rust CI now uses `--locked` for test, clippy, and release build steps.
+- Rust formatting is validated in a dedicated architecture-neutral `Rust format` job rather than being attached to the x64 matrix entry.
 - Stage 1 capability reporting now advertises implemented read-only physical-drive access.
 - Development worker binary uses the Cargo-friendly name `media-recovery-worker.exe`; final public naming is owned by the Windows packaging layer.
+- Win32 FFI bindings use Rust snake_case names with explicit `link_name` symbols to keep strict linting independent from Windows API naming.
 
 ### Fixed
 
