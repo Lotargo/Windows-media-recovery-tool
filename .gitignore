@@ -1,7 +1,6 @@
 # Rust
 /target/
 **/*.rs.bk
-Cargo.lock
 
 # .NET / Visual Studio
 [Bb]in/
@@ -56,7 +55,7 @@ recovered/
 scan-cache/
 preview-cache/
 
-# Disk images and forensic fixtures
+# Disk images and local forensic fixtures
 *.img
 *.raw
 *.dd
