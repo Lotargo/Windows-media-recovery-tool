@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 hardware-profile.workspace = true
+partition-table.workspace = true
 recovery-core.workspace = true
 recovery-protocol.workspace = true
 windows-storage.workspace = true
