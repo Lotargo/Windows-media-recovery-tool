@@ -44,7 +44,7 @@ impl WorkerCapabilities {
         Self {
             protocol_version: PROTOCOL_VERSION,
             architecture: current_architecture(),
-            physical_drive_access: false,
+            physical_drive_access: true,
             raw_image_source: true,
         }
     }
@@ -60,9 +60,9 @@ mod tests {
     }
 
     #[test]
-    fn stage_one_foundation_reports_raw_image_support() {
+    fn stage_one_foundation_reports_storage_sources() {
         let capabilities = WorkerCapabilities::stage_one_foundation();
         assert!(capabilities.raw_image_source);
-        assert!(!capabilities.physical_drive_access);
+        assert!(capabilities.physical_drive_access);
     }
 }
