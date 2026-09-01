@@ -18,14 +18,21 @@ const MAX_EXTENTS_BUFFER_BYTES: usize = 64 * 1024;
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    fn QueryDosDeviceW(
+    #[link_name = "QueryDosDeviceW"]
+    fn query_dos_device_w(
         device_name: *const u16,
         target_path: *mut u16,
         max_chars: u32,
     ) -> u32;
-    fn GetLogicalDriveStringsW(buffer_length: u32, buffer: *mut u16) -> u32;
-    fn GetDriveTypeW(root_path_name: *const u16) -> u32;
-    fn DeviceIoControl(
+
+    #[link_name = "GetLogicalDriveStringsW"]
+    fn get_logical_drive_strings_w(buffer_length: u32, buffer: *mut u16) -> u32;
+
+    #[link_name = "GetDriveTypeW"]
+    fn get_drive_type_w(root_path_name: *const u16) -> u32;
+
+    #[link_name = "DeviceIoControl"]
+    fn device_io_control(
         device: *mut c_void,
         control_code: u32,
         input_buffer: *const c_void,
@@ -176,7 +183,9 @@ fn enumerate_dos_device_names() -> io::Result<Vec<String>> {
 
     loop {
         let mut buffer = vec![0_u16; capacity];
-        let copied = unsafe { QueryDosDeviceW(null(), buffer.as_mut_ptr(), buffer.len() as u32) };
+        let copied = unsafe {
+            query_dos_device_w(null(), buffer.as_mut_ptr(), buffer.len() as u32)
+        };
 
         if copied != 0 {
             buffer.truncate(copied as usize);
@@ -195,13 +204,15 @@ fn enumerate_dos_device_names() -> io::Result<Vec<String>> {
 }
 
 fn enumerate_logical_drive_roots() -> io::Result<Vec<String>> {
-    let required = unsafe { GetLogicalDriveStringsW(0, null_mut()) };
+    let required = unsafe { get_logical_drive_strings_w(0, null_mut()) };
     if required == 0 {
         return Err(io::Error::last_os_error());
     }
 
     let mut buffer = vec![0_u16; required as usize + 1];
-    let copied = unsafe { GetLogicalDriveStringsW(buffer.len() as u32, buffer.as_mut_ptr()) };
+    let copied = unsafe {
+        get_logical_drive_strings_w(buffer.len() as u32, buffer.as_mut_ptr())
+    };
     if copied == 0 {
         return Err(io::Error::last_os_error());
     }
@@ -212,7 +223,7 @@ fn enumerate_logical_drive_roots() -> io::Result<Vec<String>> {
 
 fn query_drive_type(root_path: &str) -> VolumeDriveType {
     let wide = wide_null(root_path);
-    VolumeDriveType::from_raw(unsafe { GetDriveTypeW(wide.as_ptr()) })
+    VolumeDriveType::from_raw(unsafe { get_drive_type_w(wide.as_ptr()) })
 }
 
 fn open_volume_query_handle(path: &str) -> io::Result<File> {
@@ -229,7 +240,7 @@ fn query_volume_disk_numbers(file: &File) -> io::Result<Vec<u32>> {
         let mut buffer = vec![0_u8; capacity];
         let mut bytes_returned = 0_u32;
         let result = unsafe {
-            DeviceIoControl(
+            device_io_control(
                 file.as_raw_handle(),
                 IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
                 null(),
