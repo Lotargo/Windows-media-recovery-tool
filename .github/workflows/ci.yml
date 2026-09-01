@@ -75,12 +75,3 @@ jobs:
               exit 1
             }
           }
-
-  implementation-placeholder:
-    name: Implementation matrix not activated yet
-    runs-on: windows-latest
-    needs: repository-structure
-    if: ${{ false }}
-
-    steps:
-      - run: echo "Enable Rust/.NET x86/x64/ARM64 build jobs when Stage 0 source scaffolding is added."
