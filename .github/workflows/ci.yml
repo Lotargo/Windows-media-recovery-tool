@@ -36,6 +36,8 @@ jobs:
             'src/worker/media-recovery-worker/Cargo.toml',
             'src/rust/recovery-core/Cargo.toml',
             'src/rust/hardware-profile/Cargo.toml',
+            'src/rust/partition-table/Cargo.toml',
+            'src/rust/partition-table/src/lib.rs',
             'src/rust/windows-storage/Cargo.toml',
             'src/rust/windows-storage/src/enumeration.rs',
             'src/rust/windows-storage/src/profile.rs',
@@ -258,6 +260,36 @@ jobs:
 
           if ($info.logical_sector_size -ne 512) {
             throw "Unexpected RAW image logical sector size: $($info.logical_sector_size)"
+          }
+
+          Remove-Item -LiteralPath $fixture -Force
+
+      - name: Verify MBR partition discovery
+        shell: pwsh
+        run: |
+          $worker = '.\target\${{ matrix.rust_target }}\release\media-recovery-worker.exe'
+          $fixture = Join-Path $env:RUNNER_TEMP 'stage2-mbr.img'
+          $bytes = New-Object byte[] (2 * 1024 * 1024)
+          $bytes[510] = 0x55
+          $bytes[511] = 0xAA
+          $entry = 446
+          $bytes[$entry + 4] = 0x07
+          [BitConverter]::GetBytes([uint32]2048).CopyTo($bytes, $entry + 8)
+          [BitConverter]::GetBytes([uint32]1024).CopyTo($bytes, $entry + 12)
+          [System.IO.File]::WriteAllBytes($fixture, $bytes)
+
+          $partition = (& $worker --partition-info $fixture) | ConvertFrom-Json
+
+          if ($partition.scheme -ne 'mbr') {
+            throw "Expected MBR partition table, got '$($partition.scheme)'"
+          }
+
+          if (@($partition.entries).Count -ne 1) {
+            throw "Expected one MBR partition, got $(@($partition.entries).Count)"
+          }
+
+          if ($partition.entries[0].start_lba -ne 2048 -or $partition.entries[0].sector_count -ne 1024) {
+            throw 'MBR partition range did not survive the worker pipeline.'
           }
 
           Remove-Item -LiteralPath $fixture -Force
