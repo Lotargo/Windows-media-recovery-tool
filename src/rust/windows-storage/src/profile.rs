@@ -17,7 +17,8 @@ const PROPERTY_STANDARD_QUERY: i32 = 0;
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    fn DeviceIoControl(
+    #[link_name = "DeviceIoControl"]
+    fn device_io_control(
         h_device: *mut c_void,
         io_control_code: u32,
         input_buffer: *const c_void,
@@ -238,7 +239,7 @@ fn query_without_input<T: Copy + Default>(file: &File, control_code: u32) -> io:
     let mut bytes_returned = 0_u32;
 
     let result = unsafe {
-        DeviceIoControl(
+        device_io_control(
             file.as_raw_handle(),
             control_code,
             null(),
@@ -273,7 +274,7 @@ fn query_with_input<TInput, TOutput: Copy + Default>(
     let mut bytes_returned = 0_u32;
 
     let result = unsafe {
-        DeviceIoControl(
+        device_io_control(
             file.as_raw_handle(),
             control_code,
             (input as *const TInput).cast(),
