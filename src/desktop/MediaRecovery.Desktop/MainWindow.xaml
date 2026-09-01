@@ -1,0 +1,20 @@
+<Window
+    x:Class="MediaRecovery.Desktop.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Windows Media Recovery Tool">
+
+    <Grid Padding="32">
+        <StackPanel Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock
+                Text="Windows Media Recovery Tool"
+                FontSize="28"
+                FontWeight="SemiBold"
+                HorizontalAlignment="Center" />
+            <TextBlock
+                Text="Stage 0 foundation build"
+                Opacity="0.72"
+                HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Window>
