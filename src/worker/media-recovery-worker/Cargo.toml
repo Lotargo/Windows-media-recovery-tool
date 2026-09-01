@@ -1,0 +1,12 @@
+[package]
+name = "media-recovery-worker"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "MediaRecovery.Worker"
+path = "src/main.rs"
+
+[dependencies]
+recovery-core.workspace = true
+recovery-protocol.workspace = true
