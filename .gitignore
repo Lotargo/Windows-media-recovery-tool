@@ -1,0 +1,82 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Windows build and packaging output
+artifacts/
+dist/
+release/
+packages/
+*.msi
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.cer
+*.pfx
+*.p12
+*.snk
+
+# Code signing / secrets
+*.key
+*.pem
+*.crt
+*.secrets.json
+.env
+.env.*
+!.env.example
+
+# Recovery runtime data
+*.scan.db
+*.scan.db-shm
+*.scan.db-wal
+*.recovery.db
+*.recovery.db-shm
+*.recovery.db-wal
+checkpoints/
+recovered/
+scan-cache/
+preview-cache/
+
+# Disk images and forensic fixtures
+*.img
+*.raw
+*.dd
+*.vhd
+*.vhdx
+*.e01
+*.aff4
+
+# Logs and diagnostics
+logs/
+*.log
+*.dmp
+*.etl
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+~$*
+.DS_Store
+Thumbs.db
+Desktop.ini
