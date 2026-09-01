@@ -1,0 +1,7 @@
+[package]
+name = "windows-storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+recovery-core.workspace = true
