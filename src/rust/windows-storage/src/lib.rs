@@ -1,5 +1,10 @@
+mod enumeration;
 mod profile;
 
+pub use enumeration::{
+    DiscoveredPhysicalDrive, MountedVolume, StorageDiscovery, VolumeDriveType,
+    enumerate_storage_sources,
+};
 pub use profile::{StorageBusType, StorageProfile};
 
 use recovery_core::BlockSource;
