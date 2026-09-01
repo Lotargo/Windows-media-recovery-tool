@@ -40,12 +40,12 @@ pub struct WorkerCapabilities {
 }
 
 impl WorkerCapabilities {
-    pub fn stage_zero() -> Self {
+    pub fn stage_one_foundation() -> Self {
         Self {
             protocol_version: PROTOCOL_VERSION,
             architecture: current_architecture(),
             physical_drive_access: false,
-            raw_image_source: false,
+            raw_image_source: true,
         }
     }
 }
@@ -57,5 +57,12 @@ mod tests {
     #[test]
     fn current_architecture_has_stable_wire_name() {
         assert!(!current_architecture().as_str().is_empty());
+    }
+
+    #[test]
+    fn stage_one_foundation_reports_raw_image_support() {
+        let capabilities = WorkerCapabilities::stage_one_foundation();
+        assert!(capabilities.raw_image_source);
+        assert!(!capabilities.physical_drive_access);
     }
 }
