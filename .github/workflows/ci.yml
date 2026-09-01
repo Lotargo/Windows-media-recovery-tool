@@ -27,6 +27,14 @@ jobs:
             'README.md',
             'CHANGELOG.md',
             '.gitignore',
+            'Cargo.toml',
+            'global.json',
+            'Directory.Build.props',
+            'WindowsMediaRecovery.sln',
+            'src/desktop/MediaRecovery.Desktop/MediaRecovery.Desktop.csproj',
+            'src/worker/media-recovery-worker/Cargo.toml',
+            'src/rust/recovery-core/Cargo.toml',
+            'protocol/recovery-protocol/Cargo.toml',
             'plan/README.md',
             'plan/01-product-scope.md',
             'plan/02-architecture.md',
@@ -83,3 +91,103 @@ jobs:
               exit 1
             }
           }
+
+  rust:
+    name: Rust ${{ matrix.arch }}
+    needs: repository-structure
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-latest
+            rust_target: i686-pc-windows-msvc
+            expected_arch: x86
+          - arch: x64
+            runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            expected_arch: x64
+          - arch: arm64
+            runner: windows-11-vs2026-arm
+            rust_target: aarch64-pc-windows-msvc
+            expected_arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable and target
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add '${{ matrix.rust_target }}'
+          rustup component add rustfmt clippy
+          rustc --version
+          cargo --version
+
+      - name: Check Rust formatting
+        if: matrix.arch == 'x64'
+        run: cargo fmt --all -- --check
+
+      - name: Run Rust tests
+        run: cargo test --workspace --target ${{ matrix.rust_target }}
+
+      - name: Run Rust clippy
+        run: cargo clippy --workspace --all-targets --target ${{ matrix.rust_target }} -- -D warnings
+
+      - name: Build release worker
+        run: cargo build --workspace --release --target ${{ matrix.rust_target }}
+
+      - name: Verify worker capabilities
+        shell: pwsh
+        run: |
+          $worker = '.\target\${{ matrix.rust_target }}\release\media-recovery-worker.exe'
+          $capabilities = (& $worker --capabilities) | ConvertFrom-Json
+
+          if ($capabilities.protocol_version -ne 1) {
+            throw "Unexpected protocol version: $($capabilities.protocol_version)"
+          }
+
+          if ($capabilities.architecture -ne '${{ matrix.expected_arch }}') {
+            throw "Expected architecture '${{ matrix.expected_arch }}', got '$($capabilities.architecture)'"
+          }
+
+  desktop:
+    name: WinUI ${{ matrix.arch }}
+    needs: repository-structure
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-latest
+            platform: x86
+          - arch: x64
+            runner: windows-latest
+            platform: x64
+          - arch: arm64
+            runner: windows-11-vs2026-arm
+            platform: ARM64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Show .NET environment
+        run: dotnet --info
+
+      - name: Restore WinUI solution
+        run: dotnet restore WindowsMediaRecovery.sln -p:Platform=${{ matrix.platform }}
+
+      - name: Build WinUI solution
+        run: dotnet build WindowsMediaRecovery.sln -c Release -p:Platform=${{ matrix.platform }} --no-restore
