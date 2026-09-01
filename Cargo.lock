@@ -11,6 +11,7 @@ name = "media-recovery-worker"
 version = "0.1.0"
 dependencies = [
  "hardware-profile",
+ "partition-table",
  "recovery-core",
  "recovery-protocol",
  "windows-storage",
