@@ -3,11 +3,17 @@
 version = 4
 
 [[package]]
+name = "hardware-profile"
+version = "0.1.0"
+
+[[package]]
 name = "media-recovery-worker"
 version = "0.1.0"
 dependencies = [
+ "hardware-profile",
  "recovery-core",
  "recovery-protocol",
+ "windows-storage",
 ]
 
 [[package]]
@@ -17,3 +23,10 @@ version = "0.1.0"
 [[package]]
 name = "recovery-protocol"
 version = "0.1.0"
+
+[[package]]
+name = "windows-storage"
+version = "0.1.0"
+dependencies = [
+ "recovery-core",
+]
