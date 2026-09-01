@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "protocol/recovery-protocol",
     "src/rust/hardware-profile",
+    "src/rust/partition-table",
     "src/rust/recovery-core",
     "src/rust/windows-storage",
     "src/worker/media-recovery-worker",
@@ -14,6 +15,7 @@ edition = "2024"
 
 [workspace.dependencies]
 hardware-profile = { path = "src/rust/hardware-profile" }
+partition-table = { path = "src/rust/partition-table" }
 recovery-core = { path = "src/rust/recovery-core" }
 recovery-protocol = { path = "protocol/recovery-protocol" }
 windows-storage = { path = "src/rust/windows-storage" }
