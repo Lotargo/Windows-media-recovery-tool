@@ -296,26 +296,22 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
     })
 }
 
-pub const fn classify_storage(
+pub fn classify_storage(
     bus_type: Option<StorageBusType>,
     incurs_seek_penalty: Option<bool>,
     removable: Option<bool>,
 ) -> StorageKind {
     match bus_type {
-        Some(StorageBusType::Nvme) => return StorageKind::Nvme,
-        Some(StorageBusType::Sd | StorageBusType::Mmc) => return StorageKind::SdMmc,
-        Some(StorageBusType::Virtual | StorageBusType::FileBackedVirtual) => {
-            return StorageKind::Virtual;
-        }
-        _ => {}
-    }
-
-    match incurs_seek_penalty {
-        Some(true) => StorageKind::Hdd,
-        Some(false) if removable == Some(true) => StorageKind::Removable,
-        Some(false) => StorageKind::Ssd,
-        None if removable == Some(true) => StorageKind::Removable,
-        None => StorageKind::Unknown,
+        Some(StorageBusType::Nvme) => StorageKind::Nvme,
+        Some(StorageBusType::Sd | StorageBusType::Mmc) => StorageKind::SdMmc,
+        Some(StorageBusType::Virtual | StorageBusType::FileBackedVirtual) => StorageKind::Virtual,
+        _ => match incurs_seek_penalty {
+            Some(true) => StorageKind::Hdd,
+            Some(false) if removable == Some(true) => StorageKind::Removable,
+            Some(false) => StorageKind::Ssd,
+            None if removable == Some(true) => StorageKind::Removable,
+            None => StorageKind::Unknown,
+        },
     }
 }
 
@@ -409,7 +405,10 @@ fn descriptor_string(buffer: &[u8], offset: u32) -> Option<String> {
 
     let start = offset as usize;
     let tail = buffer.get(start..)?;
-    let end = tail.iter().position(|value| *value == 0).unwrap_or(tail.len());
+    let end = tail
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(tail.len());
     let value = String::from_utf8_lossy(&tail[..end]).trim().to_owned();
 
     (!value.is_empty()).then_some(value)
@@ -536,7 +535,10 @@ mod tests {
         let mut buffer = vec![0_u8; 32];
         buffer.extend_from_slice(b"  Example Device  \0");
 
-        assert_eq!(descriptor_string(&buffer, 32), Some("Example Device".to_owned()));
+        assert_eq!(
+            descriptor_string(&buffer, 32),
+            Some("Example Device".to_owned())
+        );
         assert_eq!(descriptor_string(&buffer, 0), None);
         assert_eq!(descriptor_string(&buffer, 4096), None);
     }
