@@ -162,11 +162,7 @@ fn count_processor_core_records(buffer: &[u8]) -> io::Result<usize> {
 
         let relationship = unsafe { (buffer.as_ptr().add(offset).cast::<i32>()).read_unaligned() };
         let record_size = unsafe {
-            (buffer
-                .as_ptr()
-                .add(offset + size_of::<i32>())
-                .cast::<u32>())
-            .read_unaligned()
+            (buffer.as_ptr().add(offset + size_of::<i32>()).cast::<u32>()).read_unaligned()
         } as usize;
 
         if record_size < PROCESSOR_RECORD_HEADER_BYTES {
