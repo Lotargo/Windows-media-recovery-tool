@@ -94,18 +94,21 @@ The recovery worker is designed as a separate process so the UI can restart with
 
 ## Current implementation
 
-Stage 0 is in progress.
+Stage 1 is active after the initial Stage 0 build foundation passed the x86, x64, and ARM64 CI matrix.
 
 The repository now contains:
 
 - a .NET 10 / WinUI 3 desktop solution using Windows App SDK 2.4.0;
-- a Rust workspace with recovery core, protocol, and standalone worker crates;
-- a versioned Stage 0 local protocol contract;
+- a Rust workspace with recovery core, protocol, standalone worker, hardware-profile, and Windows-storage crates;
+- a versioned local protocol contract;
 - x86, x64, and ARM64 GitHub Actions build/test jobs;
 - a Windows packaging workspace;
-- a deterministic recovery-fixture workspace for future scan tests.
+- a deterministic recovery-fixture workspace for future scan tests;
+- read-only random-access RAW disk image support;
+- read-only Windows physical-drive handle primitives;
+- CPU architecture, pointer-width, logical-processor, and SIMD capability profiling.
 
-The recovery worker currently exposes `--version` and `--capabilities` probes. Raw storage discovery and read-only block access begin in Stage 1.
+The recovery worker currently exposes `--version`, `--capabilities`, `--hardware-profile`, and `--raw-image-info` diagnostics. Physical-drive geometry and storage-property discovery are the next Stage 1 implementation slice.
 
 ## Core invariants
 
@@ -139,4 +142,4 @@ The application must install and run like normal trusted Windows software:
 
 ## Status
 
-Stage 0 implementation is active. See [`CHANGELOG.md`](CHANGELOG.md) for project-level changes and [`plan/`](plan/README.md) for the full implementation roadmap.
+Stage 1 storage and hardware discovery is active. See [`CHANGELOG.md`](CHANGELOG.md) for project-level changes and [`plan/`](plan/README.md) for the full implementation roadmap.
