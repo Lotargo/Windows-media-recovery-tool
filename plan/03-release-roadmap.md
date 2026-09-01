@@ -4,7 +4,7 @@ This roadmap describes the implementation order for Release 1. The order is inte
 
 ## Stage 0 - Repository and build foundation
 
-**Status:** Planned
+**Status:** Complete
 
 ### Goals
 
@@ -34,7 +34,7 @@ This roadmap describes the implementation order for Release 1. The order is inte
 
 ## Stage 1 - Windows storage and hardware discovery
 
-**Status:** Planned
+**Status:** Complete
 
 ### Goals
 
@@ -64,7 +64,7 @@ Build the safe hardware-facing foundation before recovery algorithms.
 
 ## Stage 2 - Partition and file-system metadata recovery
 
-**Status:** Planned
+**Status:** In progress
 
 ### Goals
 
