@@ -19,11 +19,7 @@ const MAX_EXTENTS_BUFFER_BYTES: usize = 64 * 1024;
 #[link(name = "kernel32")]
 unsafe extern "system" {
     #[link_name = "QueryDosDeviceW"]
-    fn query_dos_device_w(
-        device_name: *const u16,
-        target_path: *mut u16,
-        max_chars: u32,
-    ) -> u32;
+    fn query_dos_device_w(device_name: *const u16, target_path: *mut u16, max_chars: u32) -> u32;
 
     #[link_name = "GetLogicalDriveStringsW"]
     fn get_logical_drive_strings_w(buffer_length: u32, buffer: *mut u16) -> u32;
@@ -183,9 +179,8 @@ fn enumerate_dos_device_names() -> io::Result<Vec<String>> {
 
     loop {
         let mut buffer = vec![0_u16; capacity];
-        let copied = unsafe {
-            query_dos_device_w(null(), buffer.as_mut_ptr(), buffer.len() as u32)
-        };
+        let copied =
+            unsafe { query_dos_device_w(null(), buffer.as_mut_ptr(), buffer.len() as u32) };
 
         if copied != 0 {
             buffer.truncate(copied as usize);
@@ -210,9 +205,7 @@ fn enumerate_logical_drive_roots() -> io::Result<Vec<String>> {
     }
 
     let mut buffer = vec![0_u16; required as usize + 1];
-    let copied = unsafe {
-        get_logical_drive_strings_w(buffer.len() as u32, buffer.as_mut_ptr())
-    };
+    let copied = unsafe { get_logical_drive_strings_w(buffer.len() as u32, buffer.as_mut_ptr()) };
     if copied == 0 {
         return Err(io::Error::last_os_error());
     }
@@ -292,9 +285,7 @@ fn parse_volume_disk_extents(buffer: &[u8]) -> io::Result<Vec<u32>> {
     let mut disk_numbers = Vec::with_capacity(count);
     for index in 0..count {
         let offset = extent_offset + index * size_of::<DiskExtent>();
-        let extent = unsafe {
-            (buffer.as_ptr().add(offset).cast::<DiskExtent>()).read_unaligned()
-        };
+        let extent = unsafe { (buffer.as_ptr().add(offset).cast::<DiskExtent>()).read_unaligned() };
         disk_numbers.push(extent.disk_number);
     }
 
