@@ -37,6 +37,7 @@ jobs:
             'src/rust/recovery-core/Cargo.toml',
             'src/rust/hardware-profile/Cargo.toml',
             'src/rust/windows-storage/Cargo.toml',
+            'src/rust/windows-storage/src/enumeration.rs',
             'protocol/recovery-protocol/Cargo.toml',
             'plan/README.md',
             'plan/01-product-scope.md',
@@ -204,6 +205,24 @@ jobs:
 
           if ($profile.logical_processors -lt 1) {
             throw 'Logical processor count must be at least one.'
+          }
+
+      - name: Verify storage source discovery
+        shell: pwsh
+        run: |
+          $worker = '.\target\${{ matrix.rust_target }}\release\media-recovery-worker.exe'
+          $discovery = (& $worker --list-sources) | ConvertFrom-Json
+
+          if ($null -eq $discovery.physical_drives) {
+            throw 'Storage discovery must return a physical_drives collection.'
+          }
+
+          if ($null -eq $discovery.mounted_volumes) {
+            throw 'Storage discovery must return a mounted_volumes collection.'
+          }
+
+          if (@($discovery.mounted_volumes).Count -lt 1) {
+            throw 'Windows runner should expose at least one mounted volume.'
           }
 
       - name: Verify RAW disk image source
