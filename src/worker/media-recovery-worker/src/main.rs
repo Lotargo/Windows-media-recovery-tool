@@ -232,10 +232,7 @@ fn print_partition_info(path: &str) -> std::io::Result<()> {
         .collect::<Vec<_>>()
         .join(",");
 
-    println!(
-        "{{\"scheme\":\"{}\",\"entries\":[{}]}}",
-        scheme, entries,
-    );
+    println!("{{\"scheme\":\"{}\",\"entries\":[{}]}}", scheme, entries,);
     Ok(())
 }
 
