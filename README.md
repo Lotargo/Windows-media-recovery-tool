@@ -105,10 +105,13 @@ The repository now contains:
 - a Windows packaging workspace;
 - a deterministic recovery-fixture workspace for future scan tests;
 - read-only random-access RAW disk image support;
-- read-only Windows physical-drive handle primitives;
-- CPU architecture, pointer-width, logical-processor, and SIMD capability profiling.
+- read-only Windows physical-drive access implementing the shared `BlockSource` contract;
+- physical-drive profiling for length, logical/physical sector sizes, seek penalty, TRIM, bus type, and removable-media hints;
+- CPU architecture, pointer-width, logical-processor, and SIMD capability profiling;
+- physical-drive discovery through the Windows DOS device namespace without probing arbitrary drive indices;
+- mounted drive discovery and disk-volume mapping through Windows volume disk extents.
 
-The recovery worker currently exposes `--version`, `--capabilities`, `--hardware-profile`, and `--raw-image-info` diagnostics. Physical-drive geometry and storage-property discovery are the next Stage 1 implementation slice.
+The recovery worker currently exposes `--version`, `--capabilities`, `--hardware-profile`, `--list-sources`, `--raw-image-info`, and `--physical-drive-info <index>` diagnostics. Source discovery is safe to run without raw-sector reads; detailed physical-drive inspection remains a controlled read-only operation.
 
 ## Core invariants
 
