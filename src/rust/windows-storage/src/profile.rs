@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::fs::File;
 use std::io;
-use std::mem::{size_of, MaybeUninit};
+use std::mem::{MaybeUninit, size_of};
 use std::os::windows::io::AsRawHandle;
 use std::ptr::{null, null_mut};
 
@@ -175,13 +175,10 @@ pub struct StorageProfile {
 
 pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
     let length_bytes = query_length(file)?;
-    let alignment = query_property::<StorageAccessAlignmentDescriptor>(
-        file,
-        STORAGE_ACCESS_ALIGNMENT_PROPERTY,
-    )
-    .ok();
-    let geometry =
-        query_without_input::<DiskGeometry>(file, IOCTL_DISK_GET_DRIVE_GEOMETRY).ok();
+    let alignment =
+        query_property::<StorageAccessAlignmentDescriptor>(file, STORAGE_ACCESS_ALIGNMENT_PROPERTY)
+            .ok();
+    let geometry = query_without_input::<DiskGeometry>(file, IOCTL_DISK_GET_DRIVE_GEOMETRY).ok();
 
     let logical_sector_size = alignment
         .map(|value| value.bytes_per_logical_sector)
@@ -197,12 +194,10 @@ pub(crate) fn query_storage_profile(file: &File) -> io::Result<StorageProfile> {
         .map(|value| value.bytes_per_physical_sector)
         .filter(|value| *value != 0);
 
-    let incurs_seek_penalty = query_property::<DeviceSeekPenaltyDescriptor>(
-        file,
-        STORAGE_DEVICE_SEEK_PENALTY_PROPERTY,
-    )
-    .ok()
-    .map(|value| value.incurs_seek_penalty != 0);
+    let incurs_seek_penalty =
+        query_property::<DeviceSeekPenaltyDescriptor>(file, STORAGE_DEVICE_SEEK_PENALTY_PROPERTY)
+            .ok()
+            .map(|value| value.incurs_seek_penalty != 0);
 
     let trim_enabled = query_property::<DeviceTrimDescriptor>(file, STORAGE_DEVICE_TRIM_PROPERTY)
         .ok()
@@ -317,9 +312,6 @@ mod tests {
 
     #[test]
     fn unknown_bus_values_are_preserved() {
-        assert_eq!(
-            StorageBusType::from_raw(1234),
-            StorageBusType::Other(1234)
-        );
+        assert_eq!(StorageBusType::from_raw(1234), StorageBusType::Other(1234));
     }
 }
