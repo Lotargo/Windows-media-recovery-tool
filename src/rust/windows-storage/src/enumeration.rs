@@ -41,13 +41,13 @@ unsafe extern "system" {
 #[derive(Clone, Copy)]
 struct DiskExtent {
     disk_number: u32,
-    starting_offset: i64,
-    extent_length: i64,
+    _starting_offset: i64,
+    _extent_length: i64,
 }
 
 #[repr(C)]
 struct VolumeDiskExtentsOne {
-    number_of_disk_extents: u32,
+    _number_of_disk_extents: u32,
     extents: [DiskExtent; 1],
 }
 
@@ -264,8 +264,11 @@ fn parse_volume_disk_extents(buffer: &[u8]) -> io::Result<Vec<u32>> {
 
     let count = unsafe { (buffer.as_ptr().cast::<u32>()).read_unaligned() } as usize;
     let extent_offset = offset_of!(VolumeDiskExtentsOne, extents);
+    let extents_size = count
+        .checked_mul(size_of::<DiskExtent>())
+        .ok_or_else(|| io::Error::other("volume extent response size overflow"))?;
     let required = extent_offset
-        .checked_add(count.saturating_mul(size_of::<DiskExtent>()))
+        .checked_add(extents_size)
         .ok_or_else(|| io::Error::other("volume extent response size overflow"))?;
 
     if buffer.len() < required {
