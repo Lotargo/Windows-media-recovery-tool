@@ -1,7 +1,7 @@
 use hardware_profile::CpuProfile;
 use recovery_core::{BlockSource, ENGINE_NAME};
 use recovery_protocol::{WORKER_NAME, WorkerCapabilities};
-use windows_storage::RawDiskImage;
+use windows_storage::{RawDiskImage, WindowsPhysicalDrive};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -20,6 +20,24 @@ fn main() {
             }
             None => {
                 eprintln!("--raw-image-info requires a path");
+                std::process::exit(2);
+            }
+        },
+        Some("--physical-drive-info") => match args.next() {
+            Some(index) => match index.parse::<u32>() {
+                Ok(index) => {
+                    if let Err(error) = print_physical_drive_info(index) {
+                        eprintln!("Failed to inspect PhysicalDrive{index}: {error}");
+                        std::process::exit(1);
+                    }
+                }
+                Err(_) => {
+                    eprintln!("--physical-drive-info requires a non-negative integer index");
+                    std::process::exit(2);
+                }
+            },
+            None => {
+                eprintln!("--physical-drive-info requires a disk index");
                 std::process::exit(2);
             }
         },
@@ -80,6 +98,46 @@ fn print_raw_image_info(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+fn print_physical_drive_info(index: u32) -> std::io::Result<()> {
+    let drive = WindowsPhysicalDrive::open_read_only(index)?;
+    let profile = drive.profile();
+    let physical_sector_size = optional_number(profile.physical_sector_size);
+    let seek_penalty = optional_bool(profile.incurs_seek_penalty);
+    let trim_enabled = optional_bool(profile.trim_enabled);
+    let bus_type = profile
+        .bus_type
+        .map(|value| format!("\"{}\"", value.as_str()))
+        .unwrap_or_else(|| "null".to_owned());
+    let removable = optional_bool(profile.removable);
+
+    println!(
+        "{{\"index\":{},\"path\":\"{}\",\"length_bytes\":{},\"logical_sector_size\":{},\"physical_sector_size\":{},\"incurs_seek_penalty\":{},\"trim_enabled\":{},\"bus_type\":{},\"removable\":{}}}",
+        drive.index(),
+        drive.path().replace('\\', "\\\\"),
+        drive.len(),
+        drive.logical_sector_size(),
+        physical_sector_size,
+        seek_penalty,
+        trim_enabled,
+        bus_type,
+        removable,
+    );
+
+    Ok(())
+}
+
+fn optional_number(value: Option<u32>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn optional_bool(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "true",
+        Some(false) => "false",
+        None => "null",
+    }
+}
+
 fn print_help() {
     println!("{WORKER_NAME}");
     println!("Windows media recovery worker.");
@@ -89,4 +147,5 @@ fn print_help() {
     println!("  MediaRecovery.Worker --capabilities");
     println!("  MediaRecovery.Worker --hardware-profile");
     println!("  MediaRecovery.Worker --raw-image-info <path>");
+    println!("  MediaRecovery.Worker --physical-drive-info <index>");
 }
