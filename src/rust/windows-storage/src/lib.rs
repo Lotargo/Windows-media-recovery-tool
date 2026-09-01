@@ -5,7 +5,10 @@ pub use enumeration::{
     DiscoveredPhysicalDrive, MountedVolume, StorageDiscovery, VolumeDriveType,
     enumerate_storage_sources,
 };
-pub use profile::{StorageBusType, StorageProfile};
+pub use profile::{
+    StorageAlignment, StorageBusType, StorageIdentity, StorageKind, StorageProfile,
+    classify_storage,
+};
 
 use recovery_core::BlockSource;
 use std::fs::{File, OpenOptions};
@@ -113,8 +116,8 @@ impl WindowsPhysicalDrive {
         &self.path
     }
 
-    pub const fn profile(&self) -> StorageProfile {
-        self.profile
+    pub const fn profile(&self) -> &StorageProfile {
+        &self.profile
     }
 }
 
