@@ -240,8 +240,9 @@ fn parse_gpt_name(record: &[u8]) -> Option<String> {
     }
 
     let mut units = Vec::new();
-    for bytes in record[56..name_end].chunks_exact(2) {
-        let unit = u16::from_le_bytes([bytes[0], bytes[1]]);
+    let (pairs, _) = record[56..name_end].as_chunks::<2>();
+    for bytes in pairs {
+        let unit = u16::from_le_bytes(*bytes);
         if unit == 0 {
             break;
         }
