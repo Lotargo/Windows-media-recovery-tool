@@ -1,12 +1,28 @@
-use recovery_core::ENGINE_NAME;
+use hardware_profile::CpuProfile;
+use recovery_core::{BlockSource, ENGINE_NAME};
 use recovery_protocol::{WORKER_NAME, WorkerCapabilities};
+use windows_storage::RawDiskImage;
 
 fn main() {
-    let command = std::env::args().nth(1);
+    let mut args = std::env::args().skip(1);
+    let command = args.next();
 
     match command.as_deref() {
         Some("--version") => print_version(),
         Some("--capabilities") => print_capabilities(),
+        Some("--hardware-profile") => print_hardware_profile(),
+        Some("--raw-image-info") => match args.next() {
+            Some(path) => {
+                if let Err(error) = print_raw_image_info(&path) {
+                    eprintln!("Failed to inspect raw image: {error}");
+                    std::process::exit(1);
+                }
+            }
+            None => {
+                eprintln!("--raw-image-info requires a path");
+                std::process::exit(2);
+            }
+        },
         Some("--help") | Some("-h") => print_help(),
         Some(other) => {
             eprintln!("Unknown argument: {other}");
@@ -22,7 +38,7 @@ fn print_version() {
 }
 
 fn print_capabilities() {
-    let capabilities = WorkerCapabilities::stage_zero();
+    let capabilities = WorkerCapabilities::stage_one_foundation();
 
     println!(
         "{{\"worker\":\"{}\",\"engine\":\"{}\",\"version\":\"{}\",\"protocol_version\":{},\"architecture\":\"{}\",\"physical_drive_access\":{},\"raw_image_source\":{}}}",
@@ -36,11 +52,41 @@ fn print_capabilities() {
     );
 }
 
+fn print_hardware_profile() {
+    let profile = CpuProfile::detect();
+
+    println!(
+        "{{\"architecture\":\"{}\",\"pointer_width_bits\":{},\"logical_processors\":{},\"simd\":{{\"sse2\":{},\"sse4_2\":{},\"avx2\":{},\"avx512f\":{},\"neon\":{}}}}}",
+        profile.architecture.as_str(),
+        profile.pointer_width_bits,
+        profile.logical_processors,
+        profile.simd.sse2,
+        profile.simd.sse4_2,
+        profile.simd.avx2,
+        profile.simd.avx512f,
+        profile.simd.neon,
+    );
+}
+
+fn print_raw_image_info(path: &str) -> std::io::Result<()> {
+    let image = RawDiskImage::open(path)?;
+
+    println!(
+        "{{\"length_bytes\":{},\"logical_sector_size\":{}}}",
+        image.len(),
+        image.logical_sector_size(),
+    );
+
+    Ok(())
+}
+
 fn print_help() {
     println!("{WORKER_NAME}");
-    println!("Stage 0 recovery worker foundation.");
+    println!("Windows media recovery worker.");
     println!();
     println!("Usage:");
     println!("  MediaRecovery.Worker --version");
     println!("  MediaRecovery.Worker --capabilities");
+    println!("  MediaRecovery.Worker --hardware-profile");
+    println!("  MediaRecovery.Worker --raw-image-info <path>");
 }
