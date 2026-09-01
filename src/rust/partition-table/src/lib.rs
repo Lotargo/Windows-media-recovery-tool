@@ -67,12 +67,9 @@ pub fn discover_partition_table(source: &dyn BlockSource) -> io::Result<Option<P
     }
 
     let mbr_entries = parse_mbr_entries(&mbr, sector_size)?;
-    let protective_gpt = mbr_entries.iter().any(|entry| {
-        matches!(
-            entry.kind,
-            PartitionKind::Mbr { type_code: 0xee }
-        )
-    });
+    let protective_gpt = mbr_entries
+        .iter()
+        .any(|entry| matches!(entry.kind, PartitionKind::Mbr { type_code: 0xee }));
 
     if protective_gpt {
         return parse_gpt(source, sector_size).map(Some);
