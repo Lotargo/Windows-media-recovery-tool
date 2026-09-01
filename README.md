@@ -92,6 +92,21 @@ Responsible for all recovery-critical work:
 
 The recovery worker is designed as a separate process so the UI can restart without destroying a long-running scan.
 
+## Current implementation
+
+Stage 0 is in progress.
+
+The repository now contains:
+
+- a .NET 10 / WinUI 3 desktop solution using Windows App SDK 2.4.0;
+- a Rust workspace with recovery core, protocol, and standalone worker crates;
+- a versioned Stage 0 local protocol contract;
+- x86, x64, and ARM64 GitHub Actions build/test jobs;
+- a Windows packaging workspace;
+- a deterministic recovery-fixture workspace for future scan tests.
+
+The recovery worker currently exposes `--version` and `--capabilities` probes. Raw storage discovery and read-only block access begin in Stage 1.
+
 ## Core invariants
 
 - Source media is opened read-only.
@@ -124,4 +139,4 @@ The application must install and run like normal trusted Windows software:
 
 ## Status
 
-Planning and architecture definition are in progress. See [`CHANGELOG.md`](CHANGELOG.md) for project-level changes and [`plan/`](plan/README.md) for the implementation roadmap.
+Stage 0 implementation is active. See [`CHANGELOG.md`](CHANGELOG.md) for project-level changes and [`plan/`](plan/README.md) for the full implementation roadmap.
