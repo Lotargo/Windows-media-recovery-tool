@@ -38,6 +38,7 @@ jobs:
             'src/rust/hardware-profile/Cargo.toml',
             'src/rust/windows-storage/Cargo.toml',
             'src/rust/windows-storage/src/enumeration.rs',
+            'src/rust/windows-storage/src/profile.rs',
             'protocol/recovery-protocol/Cargo.toml',
             'plan/README.md',
             'plan/01-product-scope.md',
@@ -203,6 +204,26 @@ jobs:
 
           if ($profile.logical_processors -lt 1) {
             throw 'Logical processor count must be at least one.'
+          }
+
+          if ($null -eq $profile.physical_cores -or $profile.physical_cores -lt 1) {
+            throw 'Windows topology query must report at least one physical core.'
+          }
+
+          if ($null -eq $profile.processor_groups -or $profile.processor_groups -lt 1) {
+            throw 'Windows topology query must report at least one processor group.'
+          }
+
+          if ($null -eq $profile.memory -or $profile.memory.total_physical_bytes -lt 1) {
+            throw 'Windows memory query must report physical memory.'
+          }
+
+          if ($profile.memory.available_physical_bytes -gt $profile.memory.total_physical_bytes) {
+            throw 'Available physical memory cannot exceed total physical memory.'
+          }
+
+          if ($profile.memory.memory_load_percent -gt 100) {
+            throw 'Memory load percentage must be in the 0-100 range.'
           }
 
       - name: Verify storage source discovery
