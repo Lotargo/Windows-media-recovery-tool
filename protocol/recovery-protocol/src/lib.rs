@@ -1,6 +1,8 @@
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const WORKER_NAME: &str = "MediaRecovery.Worker";
 
+const _: () = assert!(PROTOCOL_VERSION > 0);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkerArchitecture {
     X86,
@@ -51,11 +53,6 @@ impl WorkerCapabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn protocol_version_is_non_zero() {
-        assert!(PROTOCOL_VERSION > 0);
-    }
 
     #[test]
     fn current_architecture_has_stable_wire_name() {
