@@ -135,7 +135,9 @@ mod tests {
 
         let image = RawDiskImage::open(&path).expect("fixture should open read-only");
         let mut buffer = [0_u8; 4];
-        let read = image.read_at(6, &mut buffer).expect("offset read should work");
+        let read = image
+            .read_at(6, &mut buffer)
+            .expect("offset read should work");
 
         assert_eq!(read, 4);
         assert_eq!(&buffer, b"6789");
