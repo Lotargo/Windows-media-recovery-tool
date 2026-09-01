@@ -95,9 +95,32 @@ jobs:
             }
           }
 
+  rust-format:
+    name: Rust format
+    needs: repository-structure
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rustfmt
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup component add rustfmt
+          rustfmt --version
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
   rust:
     name: Rust ${{ matrix.arch }}
-    needs: repository-structure
+    needs:
+      - repository-structure
+      - rust-format
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     strategy:
@@ -130,13 +153,9 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add '${{ matrix.rust_target }}'
-          rustup component add rustfmt clippy
+          rustup component add clippy
           rustc --version
           cargo --version
-
-      - name: Check Rust formatting
-        if: matrix.arch == 'x64'
-        run: cargo fmt --all -- --check
 
       - name: Run Rust tests
         run: cargo test --workspace --locked --target ${{ matrix.rust_target }}
