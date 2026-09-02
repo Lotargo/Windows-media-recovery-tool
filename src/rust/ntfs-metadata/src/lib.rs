@@ -1,6 +1,11 @@
+mod attributes;
 mod boot;
 mod mft;
 
+pub use attributes::{
+    NtfsAttribute, NtfsAttributeForm, NtfsAttributeHeader, NtfsAttributeType, NtfsDataRun,
+    NtfsFileName, NtfsFileReference, NtfsStandardInformation,
+};
 pub use boot::NtfsBootSector;
 pub use mft::{NtfsFileRecord, NtfsFileRecordHeader, NtfsVolume};
 
