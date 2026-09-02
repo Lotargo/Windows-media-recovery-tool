@@ -188,6 +188,56 @@ mod tests {
     }
 
     #[test]
+    fn raw_disk_image_boundary_and_eof_reads() {
+        let path = temporary_image_path();
+        std::fs::write(&path, b"abcdefghijklmnop").expect("fixture should be written");
+
+        let image = RawDiskImage::open(&path).expect("fixture should open read-only");
+
+        // 0-byte buffer
+        let mut empty_buf = [0_u8; 0];
+        assert_eq!(image.read_at(0, &mut empty_buf).unwrap(), 0);
+
+        // Read at EOF
+        let mut buf = [0_u8; 8];
+        assert_eq!(image.read_at(16, &mut buf).unwrap(), 0);
+
+        // Read past EOF
+        assert_eq!(image.read_at(100, &mut buf).unwrap(), 0);
+
+        // Partial read crossing EOF: read 8 bytes from offset 12 (length is 16, so 4 bytes left)
+        let mut partial_buf = [0_u8; 8];
+        let read = image.read_at(12, &mut partial_buf).unwrap();
+        assert_eq!(read, 4);
+        assert_eq!(&partial_buf[..4], b"mnop");
+
+        drop(image);
+        std::fs::remove_file(path).expect("fixture should be removable");
+    }
+
+    #[test]
+    fn raw_disk_image_custom_sector_size_and_path() {
+        let path = temporary_image_path();
+        std::fs::write(&path, [0xaa; 4096]).expect("fixture should be written");
+
+        let image = RawDiskImage::open_with_sector_size(&path, 4096)
+            .expect("4096-byte sector size should be valid");
+        assert_eq!(image.logical_sector_size(), 4096);
+        assert_eq!(image.path(), path.as_path());
+        assert_eq!(image.len(), 4096);
+
+        drop(image);
+        std::fs::remove_file(path).expect("fixture should be removable");
+    }
+
+    #[test]
+    fn raw_disk_image_non_existent_file_returns_error() {
+        let non_existent = std::env::temp_dir().join("non_existent_image_12345_xyz.img");
+        let error = RawDiskImage::open(&non_existent).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
     fn raw_disk_image_rejects_invalid_sector_size() {
         let path = temporary_image_path();
         std::fs::write(&path, [0_u8; 1]).expect("fixture should be written");

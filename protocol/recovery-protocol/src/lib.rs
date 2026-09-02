@@ -55,14 +55,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn protocol_constants_have_expected_values() {
+        assert_eq!(PROTOCOL_VERSION, 1);
+        assert_eq!(WORKER_NAME, "MediaRecovery.Worker");
+    }
+
+    #[test]
+    fn worker_architecture_string_representations() {
+        assert_eq!(WorkerArchitecture::X86.as_str(), "x86");
+        assert_eq!(WorkerArchitecture::X64.as_str(), "x64");
+        assert_eq!(WorkerArchitecture::Arm64.as_str(), "arm64");
+        assert_eq!(WorkerArchitecture::Unknown.as_str(), "unknown");
+    }
+
+    #[test]
     fn current_architecture_has_stable_wire_name() {
-        assert!(!current_architecture().as_str().is_empty());
+        let arch = current_architecture();
+        assert_ne!(arch, WorkerArchitecture::Unknown);
+        assert!(!arch.as_str().is_empty());
     }
 
     #[test]
     fn stage_one_foundation_reports_storage_sources() {
         let capabilities = WorkerCapabilities::stage_one_foundation();
+        assert_eq!(capabilities.protocol_version, PROTOCOL_VERSION);
+        assert_eq!(capabilities.architecture, current_architecture());
         assert!(capabilities.raw_image_source);
         assert!(capabilities.physical_drive_access);
+
+        let cloned = capabilities.clone();
+        assert_eq!(capabilities, cloned);
+
+        let debug_str = format!("{capabilities:?}");
+        assert!(debug_str.contains("WorkerCapabilities"));
     }
 }

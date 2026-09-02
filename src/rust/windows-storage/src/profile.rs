@@ -494,37 +494,105 @@ mod tests {
 
     #[test]
     fn known_bus_types_have_stable_names() {
-        assert_eq!(StorageBusType::from_raw(7).as_str(), "usb");
-        assert_eq!(StorageBusType::from_raw(11).as_str(), "sata");
-        assert_eq!(StorageBusType::from_raw(17).as_str(), "nvme");
+        let bus_cases = [
+            (0, StorageBusType::Unknown, "unknown"),
+            (1, StorageBusType::Scsi, "scsi"),
+            (2, StorageBusType::Atapi, "atapi"),
+            (3, StorageBusType::Ata, "ata"),
+            (7, StorageBusType::Usb, "usb"),
+            (8, StorageBusType::Raid, "raid"),
+            (9, StorageBusType::Iscsi, "iscsi"),
+            (10, StorageBusType::Sas, "sas"),
+            (11, StorageBusType::Sata, "sata"),
+            (12, StorageBusType::Sd, "sd"),
+            (13, StorageBusType::Mmc, "mmc"),
+            (14, StorageBusType::Virtual, "virtual"),
+            (15, StorageBusType::FileBackedVirtual, "file-backed-virtual"),
+            (16, StorageBusType::Spaces, "spaces"),
+            (17, StorageBusType::Nvme, "nvme"),
+        ];
+
+        for (raw, expected_variant, expected_str) in bus_cases {
+            let bus = StorageBusType::from_raw(raw);
+            assert_eq!(bus, expected_variant);
+            assert_eq!(bus.as_str(), expected_str);
+        }
     }
 
     #[test]
     fn unknown_bus_values_are_preserved() {
-        assert_eq!(StorageBusType::from_raw(1234), StorageBusType::Other(1234));
+        let unknown = StorageBusType::from_raw(1234);
+        assert_eq!(unknown, StorageBusType::Other(1234));
+        assert_eq!(unknown.as_str(), "other");
+    }
+
+    #[test]
+    fn storage_kind_string_representations() {
+        assert_eq!(StorageKind::Hdd.as_str(), "hdd");
+        assert_eq!(StorageKind::Ssd.as_str(), "ssd");
+        assert_eq!(StorageKind::Nvme.as_str(), "nvme");
+        assert_eq!(StorageKind::Removable.as_str(), "removable");
+        assert_eq!(StorageKind::SdMmc.as_str(), "sd-mmc");
+        assert_eq!(StorageKind::Virtual.as_str(), "virtual");
+        assert_eq!(StorageKind::Unknown.as_str(), "unknown");
     }
 
     #[test]
     fn storage_classification_prefers_strong_device_signals() {
+        // NVMe bus overrides seek penalty/removable
         assert_eq!(
-            classify_storage(Some(StorageBusType::Nvme), Some(false), Some(false)),
+            classify_storage(Some(StorageBusType::Nvme), Some(true), Some(true)),
             StorageKind::Nvme
         );
+
+        // SD / MMC bus
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Sd), None, Some(true)),
+            StorageKind::SdMmc
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Mmc), None, Some(false)),
+            StorageKind::SdMmc
+        );
+
+        // Virtual disks
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Virtual), Some(false), Some(false)),
+            StorageKind::Virtual
+        );
+        assert_eq!(
+            classify_storage(Some(StorageBusType::FileBackedVirtual), None, None),
+            StorageKind::Virtual
+        );
+
+        // HDD by seek penalty
         assert_eq!(
             classify_storage(Some(StorageBusType::Sata), Some(true), Some(false)),
             StorageKind::Hdd
         );
+
+        // SSD by no seek penalty on non-removable
         assert_eq!(
             classify_storage(Some(StorageBusType::Sata), Some(false), Some(false)),
             StorageKind::Ssd
         );
+        assert_eq!(classify_storage(None, Some(false), None), StorageKind::Ssd);
+
+        // Removable drive
         assert_eq!(
             classify_storage(Some(StorageBusType::Usb), Some(false), Some(true)),
             StorageKind::Removable
         );
         assert_eq!(
-            classify_storage(Some(StorageBusType::Sd), None, Some(true)),
-            StorageKind::SdMmc
+            classify_storage(None, None, Some(true)),
+            StorageKind::Removable
+        );
+
+        // Unknown
+        assert_eq!(classify_storage(None, None, None), StorageKind::Unknown);
+        assert_eq!(
+            classify_storage(Some(StorageBusType::Ata), None, Some(false)),
+            StorageKind::Unknown
         );
     }
 
@@ -539,5 +607,88 @@ mod tests {
         );
         assert_eq!(descriptor_string(&buffer, 0), None);
         assert_eq!(descriptor_string(&buffer, 4096), None);
+    }
+
+    #[test]
+    fn parse_device_descriptor_reads_full_header_and_strings() {
+        let header_len = size_of::<StorageDeviceDescriptorHeader>();
+        let mut buffer = vec![0_u8; header_len];
+
+        let vendor_str = b"SanDisk\0";
+        let product_str = b"Ultra USB 3.0\0";
+        let revision_str = b"1.00\0";
+        let serial_str = b"SN123456789\0";
+
+        let vendor_offset = header_len;
+        let product_offset = vendor_offset + vendor_str.len();
+        let revision_offset = product_offset + product_str.len();
+        let serial_offset = revision_offset + revision_str.len();
+
+        // Populate header fields
+        let header_ptr = buffer.as_mut_ptr().cast::<StorageDeviceDescriptorHeader>();
+        unsafe {
+            (*header_ptr).removable_media = 1;
+            (*header_ptr).command_queueing = 1;
+            (*header_ptr).bus_type = 7; // USB
+            (*header_ptr).vendor_id_offset = vendor_offset as u32;
+            (*header_ptr).product_id_offset = product_offset as u32;
+            (*header_ptr).product_revision_offset = revision_offset as u32;
+            (*header_ptr).serial_number_offset = serial_offset as u32;
+        }
+
+        // Append string data
+        buffer.extend_from_slice(vendor_str);
+        buffer.extend_from_slice(product_str);
+        buffer.extend_from_slice(revision_str);
+        buffer.extend_from_slice(serial_str);
+
+        let parsed = parse_device_descriptor(&buffer).unwrap();
+        assert_eq!(parsed.bus_type, StorageBusType::Usb);
+        assert!(parsed.removable);
+        assert!(parsed.command_queueing);
+        assert_eq!(parsed.identity.vendor.as_deref(), Some("SanDisk"));
+        assert_eq!(parsed.identity.model.as_deref(), Some("Ultra USB 3.0"));
+        assert_eq!(parsed.identity.revision.as_deref(), Some("1.00"));
+        assert_eq!(
+            parsed.identity.serial_number.as_deref(),
+            Some("SN123456789")
+        );
+    }
+
+    #[test]
+    fn parse_device_descriptor_rejects_truncated_buffer() {
+        let short_buffer = [0_u8; 10];
+        assert_eq!(
+            parse_device_descriptor(&short_buffer).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn parse_device_descriptor_and_string_fuzz_never_panics() {
+        struct Lcg(u64);
+        impl Lcg {
+            fn next_u64(&mut self) -> u64 {
+                self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                self.0
+            }
+            fn next_u8(&mut self) -> u8 {
+                (self.next_u64() >> 56) as u8
+            }
+            fn next_u32(&mut self) -> u32 {
+                (self.next_u64() >> 32) as u32
+            }
+        }
+
+        let mut rng = Lcg(0x9876_5432_10fe_dcba);
+
+        for len in 0..512 {
+            let mut byte_buf = Vec::with_capacity(len);
+            for _ in 0..len {
+                byte_buf.push(rng.next_u8());
+            }
+            let _ = parse_device_descriptor(&byte_buf);
+            let _ = descriptor_string(&byte_buf, rng.next_u32() % (len.max(1) as u32 * 2));
+        }
     }
 }

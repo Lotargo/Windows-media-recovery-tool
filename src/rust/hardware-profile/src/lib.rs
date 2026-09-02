@@ -245,6 +245,14 @@ mod tests {
     }
 
     #[test]
+    fn cpu_architecture_string_representations() {
+        assert_eq!(CpuArchitecture::X86.as_str(), "x86");
+        assert_eq!(CpuArchitecture::X64.as_str(), "x64");
+        assert_eq!(CpuArchitecture::Arm64.as_str(), "arm64");
+        assert_eq!(CpuArchitecture::Unknown.as_str(), "unknown");
+    }
+
+    #[test]
     fn cpu_profile_has_at_least_one_logical_processor() {
         let profile = CpuProfile::detect();
         assert!(profile.logical_processors >= 1);
@@ -271,6 +279,9 @@ mod tests {
             assert!(memory.total_physical_bytes > 0);
             assert!(memory.available_physical_bytes <= memory.total_physical_bytes);
             assert!(memory.memory_load_percent <= 100);
+
+            let debug_str = format!("{memory:?}");
+            assert!(debug_str.contains("MemoryProfile"));
         }
     }
 
@@ -283,6 +294,108 @@ mod tests {
         }
 
         assert_eq!(count_processor_core_records(&buffer).unwrap(), 3);
+    }
+
+    #[test]
+    fn processor_record_parser_ignores_non_core_records() {
+        let mut buffer = Vec::new();
+        // Core record (relation 0)
+        buffer.extend_from_slice(&RELATION_PROCESSOR_CORE.to_ne_bytes());
+        buffer.extend_from_slice(&(PROCESSOR_RECORD_HEADER_BYTES as u32).to_ne_bytes());
+
+        // NUMA record (relation 1, 16 bytes)
+        buffer.extend_from_slice(&1_i32.to_ne_bytes());
+        buffer.extend_from_slice(&16_u32.to_ne_bytes());
+        buffer.extend_from_slice(&[0_u8; 8]);
+
+        // Cache record (relation 2, 24 bytes)
+        buffer.extend_from_slice(&2_i32.to_ne_bytes());
+        buffer.extend_from_slice(&24_u32.to_ne_bytes());
+        buffer.extend_from_slice(&[0_u8; 16]);
+
+        // Second core record (relation 0)
+        buffer.extend_from_slice(&RELATION_PROCESSOR_CORE.to_ne_bytes());
+        buffer.extend_from_slice(&(PROCESSOR_RECORD_HEADER_BYTES as u32).to_ne_bytes());
+
+        assert_eq!(count_processor_core_records(&buffer).unwrap(), 2);
+    }
+
+    #[test]
+    fn processor_record_parser_rejects_truncated_or_invalid_buffers() {
+        // Buffer smaller than header (e.g. 4 bytes)
+        let short_buffer = [0_u8; 4];
+        assert_eq!(
+            count_processor_core_records(&short_buffer)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+
+        // Record with size < 8 (invalid)
+        let mut invalid_size_buffer = Vec::new();
+        invalid_size_buffer.extend_from_slice(&RELATION_PROCESSOR_CORE.to_ne_bytes());
+        invalid_size_buffer.extend_from_slice(&4_u32.to_ne_bytes());
+        assert_eq!(
+            count_processor_core_records(&invalid_size_buffer)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        // Record claiming to be 100 bytes in a 16-byte buffer
+        let mut overrunning_buffer = Vec::new();
+        overrunning_buffer.extend_from_slice(&RELATION_PROCESSOR_CORE.to_ne_bytes());
+        overrunning_buffer.extend_from_slice(&100_u32.to_ne_bytes());
+        overrunning_buffer.extend_from_slice(&[0_u8; 8]);
+        assert_eq!(
+            count_processor_core_records(&overrunning_buffer)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+
+        // Buffer with only non-core records (0 cores found)
+        let mut zero_cores_buffer = Vec::new();
+        zero_cores_buffer.extend_from_slice(&1_i32.to_ne_bytes()); // relation 1 (NUMA)
+        zero_cores_buffer.extend_from_slice(&(PROCESSOR_RECORD_HEADER_BYTES as u32).to_ne_bytes());
+        assert!(count_processor_core_records(&zero_cores_buffer).is_err());
+    }
+
+    #[test]
+    fn simd_detection_reports_expected_flags() {
+        let simd = detect_simd();
+        #[cfg(target_arch = "x86_64")]
+        {
+            // x86_64 always mandates SSE2 support
+            assert!(simd.sse2);
+            assert!(!simd.neon);
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            assert!(simd.neon);
+            assert!(!simd.sse2);
+        }
+        let debug_str = format!("{simd:?}");
+        assert!(debug_str.contains("SimdFeatures"));
+    }
+
+    #[test]
+    fn processor_record_parser_fuzz_never_panics() {
+        // Simple deterministic LCG pseudorandom generator
+        let mut state: u64 = 0x1234_5678_9abc_def0;
+        let mut next_u8 = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 56) as u8
+        };
+
+        for len in 0..512 {
+            let mut buffer = Vec::with_capacity(len);
+            for _ in 0..len {
+                buffer.push(next_u8());
+            }
+            // Must return Ok(_) or Err(_), never panic
+            let _ = count_processor_core_records(&buffer);
+        }
     }
 
     #[test]

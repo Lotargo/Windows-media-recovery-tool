@@ -323,12 +323,19 @@ mod tests {
     fn physical_drive_names_are_parsed_without_probing() {
         assert_eq!(parse_physical_drive_index("PhysicalDrive0"), Some(0));
         assert_eq!(parse_physical_drive_index("PhysicalDrive27"), Some(27));
+        assert_eq!(parse_physical_drive_index("PhysicalDrive999"), Some(999));
+        assert_eq!(parse_physical_drive_index("PhysicalDrive"), None);
+        assert_eq!(parse_physical_drive_index("PhysicalDriveABC"), None);
+        assert_eq!(parse_physical_drive_index("PhysicalDrive-1"), None);
         assert_eq!(parse_physical_drive_index("HarddiskVolume1"), None);
+        assert_eq!(parse_physical_drive_index(r"\\.\Volume{123}"), None);
     }
 
     #[test]
     fn drive_root_is_converted_to_volume_device_path() {
         assert_eq!(drive_root_to_device_path(r"C:\"), r"\\.\C:");
+        assert_eq!(drive_root_to_device_path(r"D:\"), r"\\.\D:");
+        assert_eq!(drive_root_to_device_path(r"E:"), r"\\.\E:");
     }
 
     #[test]
@@ -346,11 +353,139 @@ mod tests {
         ];
 
         assert_eq!(parse_multi_sz(&buffer), vec![r"C:\", r"D:\"]);
+
+        // Empty buffer
+        assert_eq!(parse_multi_sz(&[]), Vec::<String>::new());
+
+        // Single string
+        let single = [b'C' as u16, b':' as u16, b'\\' as u16, 0, 0];
+        assert_eq!(parse_multi_sz(&single), vec![r"C:\"]);
     }
 
     #[test]
     fn drive_type_names_are_stable() {
+        assert_eq!(VolumeDriveType::from_raw(0).as_str(), "unknown");
+        assert_eq!(VolumeDriveType::from_raw(1).as_str(), "no-root-directory");
         assert_eq!(VolumeDriveType::from_raw(2).as_str(), "removable");
         assert_eq!(VolumeDriveType::from_raw(3).as_str(), "fixed");
+        assert_eq!(VolumeDriveType::from_raw(4).as_str(), "remote");
+        assert_eq!(VolumeDriveType::from_raw(5).as_str(), "cdrom");
+        assert_eq!(VolumeDriveType::from_raw(6).as_str(), "ram-disk");
+        assert_eq!(VolumeDriveType::from_raw(99).as_str(), "other");
+    }
+
+    #[test]
+    fn parse_volume_disk_extents_single_and_multi_extents() {
+        // Single extent: count = 1, disk_number = 2
+        let mut buffer =
+            vec![0_u8; offset_of!(VolumeDiskExtentsOne, extents) + size_of::<DiskExtent>()];
+        buffer[0..4].copy_from_slice(&1_u32.to_ne_bytes()); // number of disk extents = 1
+
+        let extent_offset = offset_of!(VolumeDiskExtentsOne, extents);
+        buffer[extent_offset..extent_offset + 4].copy_from_slice(&2_u32.to_ne_bytes()); // disk_number = 2
+
+        let disk_numbers = parse_volume_disk_extents(&buffer).unwrap();
+        assert_eq!(disk_numbers, vec![2]);
+
+        // Multi extents with duplicate and out of order: disks 3, 1, 3
+        let mut multi_buf =
+            vec![0_u8; offset_of!(VolumeDiskExtentsOne, extents) + 3 * size_of::<DiskExtent>()];
+        multi_buf[0..4].copy_from_slice(&3_u32.to_ne_bytes()); // number of extents = 3
+
+        let ext_size = size_of::<DiskExtent>();
+        multi_buf[extent_offset..extent_offset + 4].copy_from_slice(&3_u32.to_ne_bytes());
+        multi_buf[extent_offset + ext_size..extent_offset + ext_size + 4]
+            .copy_from_slice(&1_u32.to_ne_bytes());
+        multi_buf[extent_offset + 2 * ext_size..extent_offset + 2 * ext_size + 4]
+            .copy_from_slice(&3_u32.to_ne_bytes());
+
+        let multi_disks = parse_volume_disk_extents(&multi_buf).unwrap();
+        assert_eq!(multi_disks, vec![1, 3]); // Sorted and deduplicated
+    }
+
+    #[test]
+    fn parse_volume_disk_extents_rejects_truncated_buffer() {
+        // Buffer smaller than header
+        let small_buf = [0_u8; 2];
+        assert_eq!(
+            parse_volume_disk_extents(&small_buf).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+
+        // Header claims 2 extents but only 1 extent is in buffer
+        let mut truncated =
+            vec![0_u8; offset_of!(VolumeDiskExtentsOne, extents) + size_of::<DiskExtent>()];
+        truncated[0..4].copy_from_slice(&2_u32.to_ne_bytes());
+        assert_eq!(
+            parse_volume_disk_extents(&truncated).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn live_windows_storage_enumeration_succeeds_and_finds_volumes() {
+        let discovery =
+            enumerate_storage_sources().expect("storage enumeration on Windows must succeed");
+
+        // Windows runner/local machine must have at least one mounted volume (e.g. C:\)
+        assert!(
+            !discovery.mounted_volumes.is_empty(),
+            "expected at least one mounted volume in Windows"
+        );
+
+        let c_drive = discovery
+            .mounted_volumes
+            .iter()
+            .find(|v| v.root_path.eq_ignore_ascii_case(r"C:\"));
+        assert!(
+            c_drive.is_some(),
+            "expected C:\\ drive to be present in Windows"
+        );
+
+        for volume in &discovery.mounted_volumes {
+            assert!(!volume.root_path.is_empty());
+            assert_ne!(volume.drive_type, VolumeDriveType::Unknown);
+        }
+
+        for drive in &discovery.physical_drives {
+            assert_eq!(drive.path, format!(r"\\.\PhysicalDrive{}", drive.index));
+        }
+    }
+
+    #[test]
+    fn parse_multi_sz_and_extents_fuzz_never_panics() {
+        struct Lcg(u64);
+        impl Lcg {
+            fn next_u64(&mut self) -> u64 {
+                self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                self.0
+            }
+            fn next_u16(&mut self) -> u16 {
+                (self.next_u64() >> 48) as u16
+            }
+            fn next_u8(&mut self) -> u8 {
+                (self.next_u64() >> 56) as u8
+            }
+        }
+
+        let mut rng = Lcg(0xcafe_babe_dead_beef);
+
+        // Fuzz parse_multi_sz
+        for len in 0..256 {
+            let mut u16_buf = Vec::with_capacity(len);
+            for _ in 0..len {
+                u16_buf.push(rng.next_u16());
+            }
+            let _ = parse_multi_sz(&u16_buf);
+        }
+
+        // Fuzz parse_volume_disk_extents
+        for len in 0..512 {
+            let mut byte_buf = Vec::with_capacity(len);
+            for _ in 0..len {
+                byte_buf.push(rng.next_u8());
+            }
+            let _ = parse_volume_disk_extents(&byte_buf);
+        }
     }
 }

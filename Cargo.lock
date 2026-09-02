@@ -22,6 +22,7 @@ name = "partition-table"
 version = "0.1.0"
 dependencies = [
  "recovery-core",
+ "windows-storage",
 ]
 
 [[package]]
