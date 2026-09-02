@@ -99,17 +99,21 @@ Stage 0 and Stage 1 foundations are implemented. Stage 2 partition and file-syst
 The repository currently contains:
 
 - a .NET 10 / WinUI 3 desktop solution using Windows App SDK 2.4.0;
-- a Rust workspace with recovery core, protocol, worker, hardware profiling, Windows storage, and partition-table crates;
+- a Rust workspace with recovery core, protocol, worker, hardware profiling, Windows storage, partition-table, and NTFS metadata crates;
 - x86, x64, and ARM64 GitHub Actions build/test/runtime jobs;
 - read-only random-access RAW disk image support;
 - read-only Windows physical-drive access through the shared `BlockSource` contract;
+- bounded `BlockSource` views that expose a partition as an isolated relative-address source;
 - physical-drive discovery and mounted-volume-to-disk mapping through Windows APIs;
 - physical-drive profiling for length, logical/physical sector sizes, alignment, seek penalty, TRIM, bus type, command queueing, and removable-media hints;
 - storage identity extraction for vendor, model, revision, and serial number when Windows exposes it;
 - deterministic storage classification for HDD, SSD, NVMe, removable, SD/MMC, virtual, and unknown devices;
 - CPU architecture, pointer width, logical/physical processor topology, processor-group, memory, and SIMD capability profiling;
 - synthetic CI coverage proving `u64` block addressing beyond 4 GiB on x86, x64, and ARM64;
-- initial MBR and GPT partition-table discovery over any `BlockSource`.
+- MBR and GPT partition-table discovery over any `BlockSource`;
+- initial NTFS boot-sector validation and geometry extraction;
+- `$MFT` location and file-record size derivation from NTFS volume metadata;
+- NTFS FILE record reads with Update Sequence Array validation and fixup before higher-level attribute parsing.
 
 The recovery worker exposes diagnostic commands for hardware profiling, storage enumeration, RAW image inspection, physical-drive inspection, and partition-table inspection. These commands are development surfaces; the final consumer flow will use the versioned worker protocol rather than requiring command-line interaction.
 
