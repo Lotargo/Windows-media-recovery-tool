@@ -72,9 +72,7 @@ impl BlockSource for BoundedBlockSource<'_> {
             .offset
             .checked_add(offset)
             .ok_or_else(|| io::Error::other("bounded source read offset overflows u64"))?;
-        let read = self
-            .source
-            .read_at(absolute_offset, &mut buffer[..count])?;
+        let read = self.source.read_at(absolute_offset, &mut buffer[..count])?;
 
         if read > count {
             return Err(io::Error::other(
