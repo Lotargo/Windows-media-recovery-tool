@@ -58,9 +58,23 @@ fn bounded_partition_flows_into_ntfs_mft_reader() {
     record[18..20].copy_from_slice(&1_u16.to_le_bytes());
     record[20..22].copy_from_slice(&56_u16.to_le_bytes());
     record[22..24].copy_from_slice(&1_u16.to_le_bytes());
-    record[24..28].copy_from_slice(&80_u32.to_le_bytes());
+    record[24..28].copy_from_slice(&140_u32.to_le_bytes());
     record[28..32].copy_from_slice(&1024_u32.to_le_bytes());
     record[44..48].copy_from_slice(&0_u32.to_le_bytes());
+
+    let attribute = &mut record[56..136];
+    attribute[0..4].copy_from_slice(&0x80_u32.to_le_bytes());
+    attribute[4..8].copy_from_slice(&80_u32.to_le_bytes());
+    attribute[8] = 1;
+    attribute[16..24].copy_from_slice(&0_u64.to_le_bytes());
+    attribute[24..32].copy_from_slice(&7_u64.to_le_bytes());
+    attribute[32..34].copy_from_slice(&72_u16.to_le_bytes());
+    attribute[40..48].copy_from_slice(&(8_u64 * CLUSTER_SIZE as u64).to_le_bytes());
+    attribute[48..56].copy_from_slice(&(8_u64 * CLUSTER_SIZE as u64).to_le_bytes());
+    attribute[56..64].copy_from_slice(&(8_u64 * CLUSTER_SIZE as u64).to_le_bytes());
+    attribute[64..72].copy_from_slice(&(8_u64 * CLUSTER_SIZE as u64).to_le_bytes());
+    attribute[72..76].copy_from_slice(&[0x11, 0x08, MFT_LCN as u8, 0x00]);
+    record[136..140].copy_from_slice(&0xffff_ffff_u32.to_le_bytes());
 
     let usn = 0x5a5a_u16.to_le_bytes();
     record[48..50].copy_from_slice(&usn);
@@ -80,6 +94,8 @@ fn bounded_partition_flows_into_ntfs_mft_reader() {
 
     assert_eq!(ntfs.boot_sector().bytes_per_cluster, 4096);
     assert_eq!(ntfs.boot_sector().file_record_size, 1024);
+    assert_eq!(ntfs.mft_runs().len(), 1);
+    assert_eq!(record.mft_stream_offset, 0);
     assert_eq!(record.byte_offset, (MFT_LCN * CLUSTER_SIZE) as u64);
     assert_eq!(record.header.record_number, Some(0));
     assert_eq!(&record.bytes[510..512], &0x1234_u16.to_le_bytes());
