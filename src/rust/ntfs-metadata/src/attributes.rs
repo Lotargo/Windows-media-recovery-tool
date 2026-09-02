@@ -3,7 +3,7 @@ use std::io;
 
 const ATTRIBUTE_END: u32 = 0xffff_ffff;
 const RESIDENT_HEADER_BYTES: usize = 24;
-const NONRESIDENT_HEADER_BYTES: usize = 64;
+const NONRESIDENT_HEADER_BYTES: usize = 72;
 const FILE_NAME_VALUE_BYTES: usize = 66;
 const STANDARD_INFORMATION_MIN_BYTES: usize = 48;
 
@@ -84,7 +84,7 @@ pub enum NtfsAttributeForm {
         allocated_length: u64,
         file_size: u64,
         valid_data_length: u64,
-        total_allocated: Option<u64>,
+        total_allocated: u64,
     },
 }
 
@@ -370,11 +370,7 @@ fn parse_attributes(record: &NtfsFileRecord) -> io::Result<Vec<NtfsAttribute<'_>
                 allocated_length: read_u64(attribute_record, 40)?,
                 file_size: read_u64(attribute_record, 48)?,
                 valid_data_length: read_u64(attribute_record, 56)?,
-                total_allocated: if attribute_record.len() >= 72 {
-                    Some(read_u64(attribute_record, 64)?)
-                } else {
-                    None
-                },
+                total_allocated: read_u64(attribute_record, 64)?,
             }
         };
 
