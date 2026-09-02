@@ -107,16 +107,10 @@ impl NtfsBootSector {
             ));
         }
 
-        let file_record_size = decode_structure_size(
-            sector[64] as i8,
-            bytes_per_cluster,
-            "file record",
-        )?;
-        let index_buffer_size = decode_structure_size(
-            sector[68] as i8,
-            bytes_per_cluster,
-            "index buffer",
-        )?;
+        let file_record_size =
+            decode_structure_size(sector[64] as i8, bytes_per_cluster, "file record")?;
+        let index_buffer_size =
+            decode_structure_size(sector[68] as i8, bytes_per_cluster, "index buffer")?;
 
         Ok(Self {
             bytes_per_sector,
@@ -194,7 +188,8 @@ mod tests {
         }
 
         fn read_at(&self, offset: u64, buffer: &mut [u8]) -> io::Result<usize> {
-            let start = usize::try_from(offset).map_err(|_| io::Error::other("offset too large"))?;
+            let start =
+                usize::try_from(offset).map_err(|_| io::Error::other("offset too large"))?;
             if start >= self.bytes.len() {
                 return Ok(0);
             }
@@ -247,11 +242,17 @@ mod tests {
     fn rejects_invalid_oem_and_signature() {
         let mut source = valid_volume();
         source.bytes[3] = b'X';
-        assert_eq!(NtfsBootSector::read(&source).unwrap_err().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            NtfsBootSector::read(&source).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
 
         let mut source = valid_volume();
         source.bytes[510] = 0;
-        assert_eq!(NtfsBootSector::read(&source).unwrap_err().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            NtfsBootSector::read(&source).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
@@ -259,7 +260,10 @@ mod tests {
         let mut source = valid_volume();
         let sectors = source.bytes.len() as u64 / 512 + 1;
         source.bytes[40..48].copy_from_slice(&sectors.to_le_bytes());
-        assert_eq!(NtfsBootSector::read(&source).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(
+            NtfsBootSector::read(&source).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
     }
 
     #[test]
@@ -267,6 +271,9 @@ mod tests {
         let mut source = valid_volume();
         let cluster_count = source.bytes.len() as u64 / 4096;
         source.bytes[48..56].copy_from_slice(&cluster_count.to_le_bytes());
-        assert_eq!(NtfsBootSector::read(&source).unwrap_err().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            NtfsBootSector::read(&source).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 }
