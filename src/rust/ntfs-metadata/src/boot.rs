@@ -206,10 +206,11 @@ mod tests {
 
     fn valid_volume() -> MemorySource {
         let mut bytes = vec![0_u8; 32 * 1024 * 1024];
+        let total_sectors = bytes.len() as u64 / 512;
         bytes[3..11].copy_from_slice(NTFS_OEM_ID);
         bytes[11..13].copy_from_slice(&512_u16.to_le_bytes());
         bytes[13] = 8;
-        bytes[40..48].copy_from_slice(&(bytes.len() as u64 / 512).to_le_bytes());
+        bytes[40..48].copy_from_slice(&total_sectors.to_le_bytes());
         bytes[48..56].copy_from_slice(&4_u64.to_le_bytes());
         bytes[56..64].copy_from_slice(&8_u64.to_le_bytes());
         bytes[64] = (-10_i8) as u8;
