@@ -391,11 +391,7 @@ fn read_mft_stream_exact(
                 "$MFT physical read exceeds the NTFS volume",
             ));
         }
-        read_exact_at(
-            source,
-            physical_offset,
-            &mut buffer[filled..filled + chunk],
-        )?;
+        read_exact_at(source, physical_offset, &mut buffer[filled..filled + chunk])?;
         filled += chunk;
     }
 
