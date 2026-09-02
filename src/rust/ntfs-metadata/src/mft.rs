@@ -152,7 +152,7 @@ fn apply_update_sequence_fixups(record: &mut [u8], bytes_per_sector: u16) -> io:
     }
 
     let sector_size = usize::from(bytes_per_sector);
-    if sector_size < 2 || record.len() % sector_size != 0 {
+    if sector_size < 2 || !record.len().is_multiple_of(sector_size) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "NTFS FILE record size is not aligned to the NTFS sector size",
@@ -221,7 +221,8 @@ mod tests {
         }
 
         fn read_at(&self, offset: u64, buffer: &mut [u8]) -> io::Result<usize> {
-            let start = usize::try_from(offset).map_err(|_| io::Error::other("offset too large"))?;
+            let start =
+                usize::try_from(offset).map_err(|_| io::Error::other("offset too large"))?;
             if start >= self.bytes.len() {
                 return Ok(0);
             }
@@ -302,6 +303,9 @@ mod tests {
     fn file_record_offset_uses_u64_arithmetic() {
         let source = volume_with_mft_record();
         let volume = NtfsVolume::open(&source).unwrap();
-        assert_eq!(volume.file_record_byte_offset(10).unwrap(), 4 * 4096 + 10 * 1024);
+        assert_eq!(
+            volume.file_record_byte_offset(10).unwrap(),
+            4 * 4096 + 10 * 1024
+        );
     }
 }
