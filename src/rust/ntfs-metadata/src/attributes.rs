@@ -247,7 +247,10 @@ impl NtfsAttribute<'_> {
             return Ok(None);
         };
         let mapping_pairs = self.mapping_pairs()?.ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "nonresident $DATA has no mapping pairs")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "nonresident $DATA has no mapping pairs",
+            )
         })?;
         parse_mapping_pairs(mapping_pairs, lowest_vcn, highest_vcn).map(Some)
     }
@@ -290,10 +293,16 @@ fn parse_attributes(record: &NtfsFileRecord) -> io::Result<Vec<NtfsAttribute<'_>
         let record_length = usize::try_from(read_u32(bytes, offset + 4)?)
             .map_err(|_| io::Error::other("NTFS attribute length does not fit memory indexing"))?;
         let form_code = *bytes.get(offset + 8).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "NTFS attribute form code is truncated")
+            io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "NTFS attribute form code is truncated",
+            )
         })?;
         let name_length = *bytes.get(offset + 9).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "NTFS attribute name length is truncated")
+            io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "NTFS attribute name length is truncated",
+            )
         })?;
         let name_offset = read_u16(bytes, offset + 10)?;
         let flags = read_u16(bytes, offset + 12)?;
@@ -484,10 +493,18 @@ fn parse_standard_information(value: &[u8]) -> io::Result<NtfsStandardInformatio
         maximum_versions: read_u32(value, 36)?,
         version_number: read_u32(value, 40)?,
         class_id: read_u32(value, 44)?,
-        owner_id: (value.len() >= 52).then(|| read_u32(value, 48)).transpose()?,
-        security_id: (value.len() >= 56).then(|| read_u32(value, 52)).transpose()?,
-        quota_charged: (value.len() >= 64).then(|| read_u64(value, 56)).transpose()?,
-        usn: (value.len() >= 72).then(|| read_u64(value, 64)).transpose()?,
+        owner_id: (value.len() >= 52)
+            .then(|| read_u32(value, 48))
+            .transpose()?,
+        security_id: (value.len() >= 56)
+            .then(|| read_u32(value, 52))
+            .transpose()?,
+        quota_charged: (value.len() >= 64)
+            .then(|| read_u64(value, 56))
+            .transpose()?,
+        usn: (value.len() >= 72)
+            .then(|| read_u64(value, 64))
+            .transpose()?,
     })
 }
 
@@ -503,7 +520,10 @@ fn parse_mapping_pairs(
 
     loop {
         let header = *bytes.get(cursor).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "NTFS mapping-pairs stream is unterminated")
+            io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "NTFS mapping-pairs stream is unterminated",
+            )
         })?;
         cursor += 1;
         if header == 0 {
@@ -520,7 +540,10 @@ fn parse_mapping_pairs(
         }
 
         let length_slice = bytes.get(cursor..cursor + length_bytes).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "NTFS mapping-pairs run length is truncated")
+            io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "NTFS mapping-pairs run length is truncated",
+            )
         })?;
         let cluster_count = read_unsigned_le(length_slice);
         cursor += length_bytes;
@@ -535,7 +558,10 @@ fn parse_mapping_pairs(
             None
         } else {
             let offset_slice = bytes.get(cursor..cursor + offset_bytes).ok_or_else(|| {
-                io::Error::new(io::ErrorKind::UnexpectedEof, "NTFS mapping-pairs LCN delta is truncated")
+                io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "NTFS mapping-pairs LCN delta is truncated",
+                )
             })?;
             let delta = read_signed_le(offset_slice);
             cursor += offset_bytes;
@@ -579,7 +605,9 @@ fn read_unsigned_le(bytes: &[u8]) -> u64 {
     bytes
         .iter()
         .enumerate()
-        .fold(0_u64, |value, (index, byte)| value | (u64::from(*byte) << (index * 8)))
+        .fold(0_u64, |value, (index, byte)| {
+            value | (u64::from(*byte) << (index * 8))
+        })
 }
 
 fn read_signed_le(bytes: &[u8]) -> i64 {
@@ -598,17 +626,22 @@ fn read_signed_le(bytes: &[u8]) -> i64 {
 }
 
 fn decode_utf16_le(bytes: &[u8]) -> io::Result<String> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "NTFS UTF-16 value has an odd byte length",
         ));
     }
     let units = bytes
-        .chunks_exact(2)
-        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_le_bytes(*pair));
     String::from_utf16(&units.collect::<Vec<_>>()).map_err(|_| {
-        io::Error::new(io::ErrorKind::InvalidData, "NTFS UTF-16 value contains invalid data")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "NTFS UTF-16 value contains invalid data",
+        )
     })
 }
 
@@ -657,9 +690,30 @@ mod tests {
         let runs = parse_mapping_pairs(&bytes, 0, 8).unwrap();
 
         assert_eq!(runs.len(), 3);
-        assert_eq!(runs[0], NtfsDataRun { vcn_start: 0, cluster_count: 3, lcn_start: Some(100) });
-        assert_eq!(runs[1], NtfsDataRun { vcn_start: 3, cluster_count: 2, lcn_start: Some(110) });
-        assert_eq!(runs[2], NtfsDataRun { vcn_start: 5, cluster_count: 4, lcn_start: None });
+        assert_eq!(
+            runs[0],
+            NtfsDataRun {
+                vcn_start: 0,
+                cluster_count: 3,
+                lcn_start: Some(100)
+            }
+        );
+        assert_eq!(
+            runs[1],
+            NtfsDataRun {
+                vcn_start: 3,
+                cluster_count: 2,
+                lcn_start: Some(110)
+            }
+        );
+        assert_eq!(
+            runs[2],
+            NtfsDataRun {
+                vcn_start: 5,
+                cluster_count: 4,
+                lcn_start: None
+            }
+        );
     }
 
     #[test]
