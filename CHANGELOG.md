@@ -9,13 +9,14 @@ The project follows the spirit of [Keep a Changelog](https://keepachangelog.com/
 ### Local Test Infrastructure & Quality Assurance
 
 #### Added
-- Comprehensive local test suite across all Rust crates (`recovery-core`, `recovery-protocol`, `hardware-profile`, `partition-table`, `windows-storage`), establishing 76 fast, deterministic automated tests.
+- Comprehensive local test suite across all Rust crates (`recovery-core`, `recovery-protocol`, `hardware-profile`, `partition-table`, `windows-storage`), initially establishing 76 fast, deterministic automated tests before the Stage 2 NTFS suite was added.
 - Worker CLI integration test suite (`src/worker/media-recovery-worker/tests/cli_tests.rs`) covering all execution flags (`--version`, `--capabilities`, `--hardware-profile`, `--list-sources`, `--raw-image-info`, `--partition-info`, `--physical-drive-info`), JSON schema contracts, and error exit codes.
 - End-to-end partition discovery integration tests (`src/rust/partition-table/tests/partition_discovery_integration.rs`) validating file-backed RAW disk images with MBR and GPT layouts.
 - Fault injection test harnesses (`ChunkedSource`, `FailingSource`) verifying graceful error handling and recovery from byte-fragmented reads and bad sectors / I/O failures.
 - Fuzzing and pseudo-random stress testing verifying that partition parsers, UTF-16 string decoders, device descriptors, `multi_sz` lists, and CPU topology decoders never panic on corrupt inputs.
 - Terabyte-scale addressing validation (up to 20 TiB virtual source and 16 TiB offsets) ensuring 64-bit address calculation safety without 32-bit truncation on x86.
 - Live non-destructive Windows storage enumeration unit tests verifying mounted volumes and physical drive paths.
+- Stage 2 tests for bounded partition reads, NTFS boot geometry, MFT offset arithmetic, Update Sequence Array repair, corrupt-sector detection, and an end-to-end bounded-volume-to-MFT flow.
 
 ### Stage 2 Partition Discovery & Metadata Recovery
 
@@ -24,6 +25,11 @@ The project follows the spirit of [Keep a Changelog](https://keepachangelog.com/
 - GPT partition name, type GUID, unique GUID, attributes, LBA range, and byte-range extraction.
 - Worker `--partition-info <raw-image-path>` diagnostic.
 - Cross-architecture CI smoke test for an MBR RAW image flowing through the worker partition-discovery path.
+- `BoundedBlockSource` for exposing a validated sub-range of a parent source as an isolated relative-address source.
+- Stage 2 `ntfs-metadata` crate with NTFS boot-sector validation and geometry extraction.
+- NTFS cluster size, volume length, `$MFT`/`$MFTMirr` location, file-record size, index-buffer size, serial number, and checksum decoding.
+- NTFS FILE record reader using fixed-width offsets and Update Sequence Array validation/fixups before attribute parsing.
+- Initial FILE record header metadata including sequence number, first attribute offset, allocation sizes, flags, base-record reference, and record number.
 
 ### Stage 1 Storage Access & Hardware Profiling
 
