@@ -189,13 +189,11 @@ fn bootstrap_mft_stream(
             ));
         };
 
-        if lowest_vcn == 0 {
-            if mft_file_size.replace(file_size).is_some() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "$MFT contains multiple base unnamed $DATA extents",
-                ));
-            }
+        if lowest_vcn == 0 && mft_file_size.replace(file_size).is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "$MFT contains multiple base unnamed $DATA extents",
+            ));
         }
 
         let runs = attribute.data_runs()?.ok_or_else(|| {
@@ -240,14 +238,10 @@ fn bootstrap_mft_stream(
     Ok((all_runs, file_size))
 }
 
-fn validate_mft_runs(
-    runs: &[NtfsDataRun],
-    boot: NtfsBootSector,
-    file_size: u64,
-) -> io::Result<()> {
-    let first = runs.first().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "$MFT runlist is empty")
-    })?;
+fn validate_mft_runs(runs: &[NtfsDataRun], boot: NtfsBootSector, file_size: u64) -> io::Result<()> {
+    let first = runs
+        .first()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "$MFT runlist is empty"))?;
     if first.vcn_start != 0 || first.lcn_start != Some(boot.mft_lcn) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -320,7 +314,10 @@ fn map_stream_offset_to_physical(
             )
         })?;
     let lcn_start = run.lcn_start.ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "$MFT cannot contain sparse data runs")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "$MFT cannot contain sparse data runs",
+        )
     })?;
     let lcn = lcn_start
         .checked_add(vcn - run.vcn_start)
@@ -375,10 +372,8 @@ fn read_mft_stream_exact(
             .checked_mul(cluster_size)
             .and_then(|bytes| bytes.checked_sub(within_cluster))
             .ok_or_else(|| io::Error::other("$MFT run byte range overflow"))?;
-        let chunk = (buffer.len() - filled).min(
-            usize::try_from(bytes_until_run_end)
-                .unwrap_or(usize::MAX),
-        );
+        let chunk =
+            (buffer.len() - filled).min(usize::try_from(bytes_until_run_end).unwrap_or(usize::MAX));
         if chunk == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -396,7 +391,11 @@ fn read_mft_stream_exact(
                 "$MFT physical read exceeds the NTFS volume",
             ));
         }
-        read_exact_at(source, physical_offset, &mut buffer[filled..filled + chunk])?;
+        read_exact_at(
+            source,
+            physical_offset,
+            &mut buffer[filled..filled + chunk],
+        )?;
         filled += chunk;
     }
 
