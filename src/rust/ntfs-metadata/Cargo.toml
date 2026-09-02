@@ -1,0 +1,7 @@
+[package]
+name = "ntfs-metadata"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+recovery-core.workspace = true
